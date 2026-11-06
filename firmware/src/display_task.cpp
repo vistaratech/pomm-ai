@@ -13,6 +13,7 @@
 #include "melodies.h"
 #include "gif_player.h"
 #include "web_dashboard.h"
+#include "ble_task.h"
 #include "timer_ui.h"
 #include "games/game_menu.h"
 #include "weather/weather_screen.h"
@@ -127,6 +128,24 @@ static void enterState(DisplayState newState) {
     _prevState = _state;
     _state = newState;
     _stateEntryMs = millis();
+}
+
+void displayShowRobotFace() {
+    enterState(GIF_PLAYBACK);
+    if (gifPlayerHasFiles()) {
+        gifPlayerBuildShuffleBag();
+        gifPlayerSetAutoAdvance(1);
+        gifPlayerSetFile(gifPlayerNextShuffle());
+    } else {
+        gifPlayerStartIdleIfNoUserGifs();
+    }
+}
+
+void displayPlayAnimation(const String &filename) {
+    if (filename.length() > 0) {
+        gifPlayerSetFile(filename);
+    }
+    enterState(GIF_PLAYBACK);
 }
 
 // ==========================================================================
@@ -595,19 +614,8 @@ void displayTask(void *param) {
 
             switch (_state) {
                 case WIFI_SETUP:
-                    if (gesture.type == SINGLE_TAP && (xEventGroupGetBits(connectivityBits) & PORTAL_ACTIVE_BIT)) {
-                        _wifiSetupShowQR = !_wifiSetupShowQR;
-                        if (_wifiSetupShowQR) {
-                            String apPwd = getApPassword();
-                            showWifiQR("PommAI", apPwd.c_str());
-                        } else {
-                            String apPwd = getApPassword();
-                            showText("[ Wi-Fi Setup ]",
-                                     "SSID: PommAI",
-                                     ("Pass: " + apPwd).c_str(),
-                                     "Tap for QR code");
-                        }
-                    }
+                    // Any tap on head dismisses Wi-Fi QR code and shows robot face immediately
+                    displayShowRobotFace();
                     break;
 
                 case GIF_PLAYBACK:
@@ -1025,6 +1033,11 @@ void displayTask(void *param) {
 
         switch (_state) {
             case WIFI_SETUP: {
+                // If Bluetooth connected or 6 seconds passed, exit QR code and show Robot Face!
+                if (bleIsConnected() || elapsed >= 6000) {
+                    displayShowRobotFace();
+                    break;
+                }
                 EventBits_t wb = xEventGroupGetBits(connectivityBits);
                 if (!(wb & PORTAL_ACTIVE_BIT)) {
                     _wifiSetupPortalDrawn = false;

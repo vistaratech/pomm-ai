@@ -12,6 +12,7 @@
 #include "gif_player.h"
 #include "settings.h"
 #include "app_state.h"
+#include "display_task.h"
 
 // Standard Nordic UART Service (NUS) UUIDs
 #define SERVICE_UUID           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
@@ -43,7 +44,7 @@ static void handleCommand(const String &cmd) {
         String filename = trimmed.substring(5);
         filename.trim();
         if (filename.length() > 0) {
-            gifPlayerSetFile(filename);
+            displayPlayAnimation(filename);
             bleNotify("OK:PLAY:" + filename);
         }
     } else if (trimmed.startsWith("TIME:")) {
@@ -54,6 +55,7 @@ static void handleCommand(const String &cmd) {
             struct timeval tv = { .tv_sec = (time_t)epoch, .tv_usec = 0 };
             settimeofday(&tv, NULL);
             Serial.printf("[BLE] Real-Time Clock updated to epoch: %ld\n", epoch);
+            displayShowRobotFace();
             bleNotify("OK:TIME");
         }
     } else if (trimmed.equalsIgnoreCase("PING")) {
@@ -69,6 +71,7 @@ class ServerCallbacks : public BLEServerCallbacks {
         deviceConnected = true;
         bleSetLed(true); // Blue LED turns solid ON when connected!
         Serial.println("[BLE] Client connected to PommAI! Blue LED turned ON.");
+        displayShowRobotFace(); // Dismiss QR code and show robot face immediately!
     }
 
     void onDisconnect(BLEServer *pServer) override {
