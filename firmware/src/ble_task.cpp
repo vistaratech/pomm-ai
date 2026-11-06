@@ -23,6 +23,14 @@ static BLECharacteristic *pTxCharacteristic = nullptr;
 static bool               deviceConnected = false;
 static bool               oldDeviceConnected = false;
 
+// ESP32-C3 Super Mini onboard Blue LED pin (GPIO 8, Active LOW: LOW = ON, HIGH = OFF)
+#define ONBOARD_BLUE_LED_PIN 8
+
+void bleSetLed(bool on) {
+    // Active LOW: LOW = ON, HIGH = OFF
+    digitalWrite(ONBOARD_BLUE_LED_PIN, on ? LOW : HIGH);
+}
+
 // Process received command string
 static void handleCommand(const String &cmd) {
     String trimmed = cmd;
@@ -59,12 +67,14 @@ static void handleCommand(const String &cmd) {
 class ServerCallbacks : public BLEServerCallbacks {
     void onConnect(BLEServer *pServer) override {
         deviceConnected = true;
-        Serial.println("[BLE] Client connected to PommAI!");
+        bleSetLed(true); // Blue LED turns solid ON when connected!
+        Serial.println("[BLE] Client connected to PommAI! Blue LED turned ON.");
     }
 
     void onDisconnect(BLEServer *pServer) override {
         deviceConnected = false;
-        Serial.println("[BLE] Client disconnected from PommAI.");
+        bleSetLed(false); // Blue LED turns OFF when disconnected!
+        Serial.println("[BLE] Client disconnected from PommAI. Blue LED turned OFF.");
         // Restart advertising
         pServer->startAdvertising();
         Serial.println("[BLE] Restarted advertising as 'PommAI'");
@@ -82,6 +92,17 @@ class RxCallbacks : public BLECharacteristicCallbacks {
 
 void bleInit() {
     Serial.println("[BLE] Initializing Bluetooth Low Energy as 'PommAI'...");
+
+    // 0. Configure onboard Blue LED (GPIO 8)
+    pinMode(ONBOARD_BLUE_LED_PIN, OUTPUT);
+    // Two quick blinks to indicate BLE ready
+    bleSetLed(true);
+    delay(80);
+    bleSetLed(false);
+    delay(80);
+    bleSetLed(true);
+    delay(80);
+    bleSetLed(false);
 
     // 1. Initialize BLE with name "PommAI"
     BLEDevice::init("PommAI");

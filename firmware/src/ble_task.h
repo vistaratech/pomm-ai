@@ -9,6 +9,9 @@
 // Initialize BLE GATT Server and start advertising with name "PommAI"
 void bleInit();
 
+// Control onboard Bluetooth status LED (GPIO 8)
+void bleSetLed(bool on);
+
 // Check if a client is currently connected via BLE
 bool bleIsConnected();
 
