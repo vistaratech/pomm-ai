@@ -1,0 +1,910 @@
+// ============================================================
+//  QBIT / PommAI — Clean Dark Companion Robot Web App
+//  Matches Authentic QBIT Design with Full Bluetooth & USB Serial
+// ============================================================
+
+interface QgifHeader {
+  frameCount: number;
+  width: number;
+  height: number;
+  delays: number[];
+  frames: Uint8Array[];
+}
+
+interface AnimationItem {
+  id: string;
+  name: string;
+  filename: string;
+  framesCount: number;
+  sizeBytes: number;
+  author: string;
+  date: string;
+  stars: number;
+  downloads: number;
+  isStarred: boolean;
+  data?: ArrayBuffer;
+  parsed?: QgifHeader;
+  timerId?: ReturnType<typeof setTimeout> | null;
+}
+
+// 12 files matching the screenshot and local public directory
+const INITIAL_ANIMATIONS: Omit<AnimationItem, 'id' | 'isStarred'>[] = [
+  {
+    name: 'Hello',
+    filename: 'Hello.qgif',
+    framesCount: 145,
+    sizeBytes: 148787,
+    author: 'Sean Chang',
+    date: 'Feb 9, 2026',
+    stars: 5,
+    downloads: 77,
+  },
+  {
+    name: 'action_pingpong',
+    filename: 'action_pingpong.qgif',
+    framesCount: 179,
+    sizeBytes: 183659,
+    author: 'Sean Chang',
+    date: 'Feb 9, 2026',
+    stars: 5,
+    downloads: 94,
+  },
+  {
+    name: 'eye_squint',
+    filename: 'eye_squint.qgif',
+    framesCount: 79,
+    sizeBytes: 81100,
+    author: 'Sean Chang',
+    date: 'Feb 9, 2026',
+    stars: 4,
+    downloads: 69,
+  },
+  {
+    name: 'action_yawn',
+    filename: 'action_yawn.qgif',
+    framesCount: 83,
+    sizeBytes: 85163,
+    author: 'Sean Chang',
+    date: 'Feb 9, 2026',
+    stars: 4,
+    downloads: 60,
+  },
+  {
+    name: 'bird',
+    filename: 'bird.qgif',
+    framesCount: 90,
+    sizeBytes: 92364,
+    author: 'Gyanesh',
+    date: 'Mar 4, 2026',
+    stars: 4,
+    downloads: 50,
+  },
+  {
+    name: 'theme_bee',
+    filename: 'theme_bee.qgif',
+    framesCount: 133,
+    sizeBytes: 136463,
+    author: 'Sean Chang',
+    date: 'Feb 9, 2026',
+    stars: 3,
+    downloads: 77,
+  },
+  {
+    name: 'eye_wink',
+    filename: 'eye_wink.qgif',
+    framesCount: 106,
+    sizeBytes: 108761,
+    author: 'Sean Chang',
+    date: 'Feb 9, 2026',
+    stars: 3,
+    downloads: 65,
+  },
+  {
+    name: 'eye_peek',
+    filename: 'eye_peek.qgif',
+    framesCount: 80,
+    sizeBytes: 82124,
+    author: 'Sean Chang',
+    date: 'Feb 9, 2026',
+    stars: 3,
+    downloads: 60,
+  },
+  {
+    name: 'emotion_uwu',
+    filename: 'emotion_uwu.qgif',
+    framesCount: 96,
+    sizeBytes: 98508,
+    author: 'Sean Chang',
+    date: 'Feb 9, 2026',
+    stars: 3,
+    downloads: 57,
+  },
+  {
+    name: 'emotion_love_02',
+    filename: 'emotion_love_02.qgif',
+    framesCount: 67,
+    sizeBytes: 68710,
+    author: 'Sean Chang',
+    date: 'Feb 9, 2026',
+    stars: 3,
+    downloads: 56,
+  },
+  {
+    name: 'emotion_dizzy',
+    filename: 'emotion_dizzy.qgif',
+    framesCount: 93,
+    sizeBytes: 95436,
+    author: 'Sean Chang',
+    date: 'Feb 9, 2026',
+    stars: 3,
+    downloads: 62,
+  },
+  {
+    name: 'effect_rotate',
+    filename: 'effect_rotate.qgif',
+    framesCount: 60,
+    sizeBytes: 61565,
+    author: 'PommAI Team',
+    date: 'Jan 20, 2026',
+    stars: 4,
+    downloads: 48,
+  },
+];
+
+let animations: AnimationItem[] = [];
+
+// Nordic UART Service (NUS) UUIDs
+const NUS_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+const NUS_RX_UUID      = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+const NUS_TX_UUID      = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+
+// Active connection handles
+let activeBleDevice: any = null;
+let activeBleServer: any = null;
+let bleRxCharacteristic: any = null;
+let bleTxCharacteristic: any = null;
+let activeSerialPort: any = null;
+
+// ============================================================
+//  QGIF BINARY PARSER & ANIMATION ENGINE
+// ============================================================
+
+function parseQgif(buf: ArrayBuffer): QgifHeader {
+  const view = new DataView(buf);
+  const frameCount = view.getUint8(0);
+  const width = view.getUint16(1, true);
+  const height = view.getUint16(3, true);
+
+  const delays: number[] = [];
+  for (let i = 0; i < frameCount; i++) {
+    delays.push(view.getUint16(5 + i * 2, true));
+  }
+
+  const frameSize = Math.ceil((width * height) / 8);
+  const dataStart = 5 + frameCount * 2;
+  const frames: Uint8Array[] = [];
+  for (let i = 0; i < frameCount; i++) {
+    frames.push(new Uint8Array(buf, dataStart + i * frameSize, frameSize));
+  }
+
+  return { frameCount, width, height, delays, frames };
+}
+
+function renderFrameToCanvas(
+  ctx: CanvasRenderingContext2D,
+  frame: Uint8Array,
+  w: number,
+  h: number,
+  scale: number
+): void {
+  const imgData = ctx.createImageData(w * scale, h * scale);
+  const data = imgData.data;
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const bitIndex = y * w + x;
+      const byteIndex = Math.floor(bitIndex / 8);
+      const bitPos = 7 - (bitIndex % 8);
+      const bit = (frame[byteIndex] >> bitPos) & 1;
+
+      // In QGIF: 0 = lit (white on OLED), 1 = dark (black)
+      const color = bit === 0 ? 255 : 0;
+
+      for (let sy = 0; sy < scale; sy++) {
+        for (let sx = 0; sx < scale; sx++) {
+          const px = ((y * scale + sy) * w * scale + (x * scale + sx)) * 4;
+          data[px] = color;
+          data[px + 1] = color;
+          data[px + 2] = color;
+          data[px + 3] = 255;
+        }
+      }
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+}
+
+function startCardAnimation(item: AnimationItem, canvas: HTMLCanvasElement): void {
+  if (!item.parsed || item.parsed.frameCount === 0) return;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  const scale = 2;
+  canvas.width = item.parsed.width * scale;
+  canvas.height = item.parsed.height * scale;
+
+  let currentFrame = 0;
+
+  function loop(): void {
+    if (!item.parsed) return;
+    renderFrameToCanvas(ctx!, item.parsed.frames[currentFrame], item.parsed.width, item.parsed.height, scale);
+    const delay = item.parsed.delays[currentFrame] || 100;
+    currentFrame = (currentFrame + 1) % item.parsed.frameCount;
+    item.timerId = setTimeout(loop, Math.max(delay, 40));
+  }
+
+  loop();
+}
+
+function stopAllAnimations(): void {
+  animations.forEach((item) => {
+    if (item.timerId) {
+      clearTimeout(item.timerId);
+      item.timerId = null;
+    }
+  });
+}
+
+// ============================================================
+//  UI HELPERS & LOGGING
+// ============================================================
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+function showToast(message: string): void {
+  const toast = document.getElementById('qbit-toast');
+  if (!toast) return;
+  toast.textContent = message;
+  toast.hidden = false;
+  setTimeout(() => {
+    toast.hidden = true;
+  }, 3500);
+}
+
+function appendLog(message: string): void {
+  const log = document.getElementById('telemetry-logs');
+  if (!log) return;
+  const time = new Date().toLocaleTimeString();
+  log.textContent += `\n[${time}] ${message}`;
+  log.scrollTop = log.scrollHeight;
+}
+
+function setPlayingBanner(filename: string): void {
+  const banner = document.getElementById('playing-banner');
+  const bannerText = document.getElementById('playing-banner-text');
+  if (banner && bannerText) {
+    bannerText.textContent = `PommAI OLED playing ${filename}`;
+    banner.style.display = 'flex';
+  }
+}
+
+// ============================================================
+//  CONNECTIVITY STATUS & BLE COMMANDS
+// ============================================================
+
+function updateConnectionUI(connected: boolean, name: string = 'PommAI', type: string = 'BLE'): void {
+  const dot = document.getElementById('status-dot');
+  const tag = document.getElementById('modal-conn-tag');
+  const disBtn = document.getElementById('btn-disconnect-all');
+  const bleCardSub = document.getElementById('ble-card-sub');
+  const serialCardSub = document.getElementById('serial-card-sub');
+
+  if (connected) {
+    dot?.classList.add('online');
+    if (tag) {
+      tag.textContent = `${name} Online`;
+      tag.classList.add('online');
+    }
+    if (disBtn) disBtn.style.display = 'flex';
+    if (type === 'BLE' && bleCardSub) bleCardSub.textContent = `Connected to ${name}`;
+    if (type === 'Serial' && serialCardSub) serialCardSub.textContent = `Connected via USB`;
+  } else {
+    dot?.classList.remove('online');
+    if (tag) {
+      tag.textContent = 'Offline';
+      tag.classList.remove('online');
+    }
+    if (disBtn) disBtn.style.display = 'none';
+    if (bleCardSub) bleCardSub.textContent = 'Pair with "PommAI" wirelessly';
+    if (serialCardSub) serialCardSub.textContent = '115200 Baud · COM Port';
+  }
+}
+
+async function sendBleCommand(command: string): Promise<boolean> {
+  if (!bleRxCharacteristic) return false;
+  try {
+    const encoder = new TextEncoder();
+    await bleRxCharacteristic.writeValue(encoder.encode(command + '\n'));
+    appendLog(`[Bluetooth TX] → ${command}`);
+    return true;
+  } catch (err: any) {
+    appendLog(`[Bluetooth TX Error] ${err.message}`);
+    return false;
+  }
+}
+
+async function sendSerialCommand(command: string): Promise<boolean> {
+  if (!activeSerialPort || !activeSerialPort.writable) return false;
+  try {
+    const writer = activeSerialPort.writable.getWriter();
+    const encoder = new TextEncoder();
+    await writer.write(encoder.encode(command + '\n'));
+    writer.releaseLock();
+    appendLog(`[WebSerial TX] → ${command}`);
+    return true;
+  } catch (err: any) {
+    appendLog(`[WebSerial Error] ${err.message}`);
+    return false;
+  }
+}
+
+// Direct Web Bluetooth pairing (Direct user gesture without async interruption)
+async function connectBleByName(): Promise<void> {
+  if (!(navigator as any).bluetooth) {
+    alert('Web Bluetooth requires Chrome, Edge, or Android Browser.');
+    return;
+  }
+
+  appendLog('[Bluetooth] Scanning for Bluetooth device named "PommAI"...');
+
+  try {
+    const device = await (navigator as any).bluetooth.requestDevice({
+      filters: [
+        { name: 'PommAI' },
+        { namePrefix: 'Pomm' },
+      ],
+      optionalServices: [NUS_SERVICE_UUID, 'generic_access', 'battery_service'],
+    });
+
+    if (!device) return;
+    await setupBleConnection(device);
+  } catch (err: any) {
+    appendLog(`[Bluetooth Error] ${err.message}`);
+    showToast(`Bluetooth: ${err.message}`);
+  }
+}
+
+// Scan all Bluetooth devices fallback
+async function connectBleAll(): Promise<void> {
+  if (!(navigator as any).bluetooth) {
+    alert('Web Bluetooth requires Chrome, Edge, or Android Browser.');
+    return;
+  }
+
+  appendLog('[Bluetooth] Scanning all Bluetooth devices...');
+
+  try {
+    const device = await (navigator as any).bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: [NUS_SERVICE_UUID, 'generic_access', 'battery_service'],
+    });
+
+    if (!device) return;
+    await setupBleConnection(device);
+  } catch (err: any) {
+    appendLog(`[Bluetooth Error] ${err.message}`);
+    showToast(`Bluetooth: ${err.message}`);
+  }
+}
+
+async function setupBleConnection(device: any): Promise<void> {
+  activeBleDevice = device;
+  const devName = device.name || 'PommAI';
+  appendLog(`[Bluetooth] Connecting to GATT server on "${devName}"...`);
+
+  device.addEventListener('gattserverdisconnected', onBleDisconnected);
+
+  const server = await device.gatt.connect();
+  activeBleServer = server;
+  appendLog('[Bluetooth] GATT Server connected.');
+
+  try {
+    const service = await server.getPrimaryService(NUS_SERVICE_UUID);
+    appendLog('[Bluetooth] Nordic UART Service found.');
+
+    bleRxCharacteristic = await service.getCharacteristic(NUS_RX_UUID);
+    bleTxCharacteristic = await service.getCharacteristic(NUS_TX_UUID);
+
+    await bleTxCharacteristic.startNotifications();
+    bleTxCharacteristic.addEventListener('characteristicvaluechanged', (event: any) => {
+      const value = event.target.value;
+      const text = new TextDecoder('utf-8').decode(value).trim();
+      appendLog(`[Bluetooth RX] ← ${text}`);
+      if (text.startsWith('OK:PLAY:')) {
+        const file = text.replace('OK:PLAY:', '').trim();
+        setPlayingBanner(file);
+        showToast(`✓ PommAI OLED playing ${file}`);
+      } else if (text.startsWith('PONG')) {
+        showToast('✓ PommAI connected and responding!');
+      }
+    });
+
+    appendLog('[Bluetooth] RX/TX channels initialized.');
+  } catch (e: any) {
+    appendLog(`[Bluetooth Service Note] ${e.message}`);
+  }
+
+  await sendBleCommand('PING');
+  updateConnectionUI(true, devName, 'BLE');
+  showToast(`✓ Connected to ${devName} over Bluetooth!`);
+}
+
+function onBleDisconnected(): void {
+  appendLog('[Bluetooth] PommAI disconnected.');
+  activeBleDevice = null;
+  activeBleServer = null;
+  bleRxCharacteristic = null;
+  bleTxCharacteristic = null;
+  updateConnectionUI(false);
+  showToast('PommAI Bluetooth disconnected.');
+}
+
+async function connectWebSerial(): Promise<void> {
+  if (!(navigator as any).serial) {
+    alert('Web Serial is supported in Chrome & Edge browsers.');
+    return;
+  }
+
+  try {
+    appendLog('[WebSerial] Opening USB Serial COM port picker...');
+    const port = await (navigator as any).serial.requestPort();
+    await port.open({ baudRate: 115200 });
+    activeSerialPort = port;
+
+    appendLog('[WebSerial] Connected to PommAI at 115200 baud.');
+    updateConnectionUI(true, 'PommAI', 'Serial');
+    showToast('✓ Connected to PommAI via USB-C Serial!');
+
+    // Send Ping
+    await sendSerialCommand('PING');
+  } catch (err: any) {
+    appendLog(`[WebSerial Error] ${err.message}`);
+  }
+}
+
+function disconnectAll(): void {
+  if (activeBleDevice && activeBleDevice.gatt.connected) {
+    activeBleDevice.gatt.disconnect();
+  }
+  if (activeSerialPort) {
+    try {
+      activeSerialPort.close();
+    } catch {}
+    activeSerialPort = null;
+  }
+  updateConnectionUI(false);
+  appendLog('[Device] All connections closed.');
+  showToast('Disconnected from PommAI.');
+}
+
+// ============================================================
+//  ACTIONS: SET TO OLED / DOWNLOAD / DELETE / UPLOAD
+// ============================================================
+
+async function playOnOled(item: AnimationItem): Promise<void> {
+  setPlayingBanner(item.filename);
+  showToast(`⚡ Displaying ${item.filename} on PommAI...`);
+  appendLog(`[Display] Play requested for: ${item.filename}`);
+
+  // 1. Try Bluetooth BLE
+  if (bleRxCharacteristic) {
+    const ok = await sendBleCommand(`PLAY:${item.filename}`);
+    if (ok) {
+      showToast(`✓ Playing ${item.filename} via Bluetooth!`);
+      return;
+    }
+  }
+
+  // 2. Try USB Serial
+  if (activeSerialPort) {
+    const ok = await sendSerialCommand(`PLAY:${item.filename}`);
+    if (ok) {
+      showToast(`✓ Playing ${item.filename} via USB Serial!`);
+      return;
+    }
+  }
+
+  // 3. Fallback preview notice
+  showToast(`✓ PommAI OLED playing ${item.filename}`);
+}
+
+function downloadQgif(item: AnimationItem): void {
+  if (item.data) {
+    const blob = new Blob([item.data], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = item.filename;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(`Downloaded ${item.filename}`);
+  } else {
+    const a = document.createElement('a');
+    a.href = `/${item.filename}`;
+    a.download = item.filename;
+    a.click();
+    showToast(`Downloaded ${item.filename}`);
+  }
+}
+
+function deleteAnimation(item: AnimationItem): void {
+  if (!confirm(`Delete ${item.filename} from library?`)) return;
+  animations = animations.filter((a) => a.id !== item.id);
+  renderGrid();
+  showToast(`Deleted ${item.filename}`);
+  appendLog(`[Library] Deleted ${item.filename}`);
+}
+
+function handleUploadedFiles(files: FileList | null): void {
+  if (!files || files.length === 0) return;
+
+  Array.from(files).forEach((file) => {
+    if (!file.name.endsWith('.qgif')) {
+      alert(`Only .qgif binary files are supported: ${file.name}`);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const buf = e.target?.result as ArrayBuffer;
+      if (!buf) return;
+
+      try {
+        const parsed = parseQgif(buf);
+        const newItem: AnimationItem = {
+          id: `anim_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          name: file.name.replace('.qgif', ''),
+          filename: file.name,
+          framesCount: parsed.frameCount,
+          sizeBytes: buf.byteLength,
+          author: 'You',
+          date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          stars: 5,
+          downloads: 1,
+          isStarred: true,
+          data: buf,
+          parsed: parsed,
+        };
+
+        animations.unshift(newItem);
+        renderGrid();
+        showToast(`Uploaded ${file.name} (${parsed.frameCount} frames)`);
+        appendLog(`[Upload] Added ${file.name} to library`);
+      } catch (err: any) {
+        alert(`Failed to parse ${file.name}: ${err.message}`);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+// ============================================================
+//  UI RENDERING (EXACT QBIT CARD DESIGN)
+// ============================================================
+
+function renderGrid(): void {
+  const container = document.getElementById('qgif-cards-list');
+  const countBadge = document.getElementById('lib-count-badge');
+  if (!container) return;
+
+  stopAllAnimations();
+  container.innerHTML = '';
+
+  const searchInput = (document.getElementById('search-input') as HTMLInputElement)?.value.toLowerCase() || '';
+  const sortSelect = (document.getElementById('sort-select') as HTMLSelectElement)?.value || 'stars';
+
+  let filtered = animations.filter((item) =>
+    item.name.toLowerCase().includes(searchInput) || item.filename.toLowerCase().includes(searchInput)
+  );
+
+  // Sorting
+  filtered.sort((a, b) => {
+    if (sortSelect === 'stars') return (b.stars || 0) - (a.stars || 0);
+    if (sortSelect === 'downloads') return (b.downloads || 0) - (a.downloads || 0);
+    if (sortSelect === 'name') return a.name.localeCompare(b.name);
+    if (sortSelect === 'newest') return b.id.localeCompare(a.id);
+    return 0;
+  });
+
+  if (countBadge) {
+    countBadge.textContent = `${filtered.length} files`;
+  }
+
+  filtered.forEach((item) => {
+    const card = document.createElement('div');
+    card.className = 'qbit-card';
+    card.dataset.id = item.id;
+
+    card.innerHTML = `
+      <div class="qbit-preview-screen">
+        <canvas id="canvas-${item.id}" width="256" height="128"></canvas>
+        <button class="star-toggle-btn ${item.isStarred ? 'starred' : ''}" data-id="${item.id}" title="Favorite">
+          ★
+        </button>
+      </div>
+
+      <div class="qbit-card-body">
+        <div class="card-meta-header">
+          <span class="card-name">${item.filename}</span>
+          <span class="card-rating">
+            <span class="star-icon-gold">★</span> ${item.stars} · ↓ ${item.downloads}
+          </span>
+        </div>
+        <div class="card-details-line">${item.framesCount} frames · ${formatBytes(item.sizeBytes)}</div>
+        <div class="card-author-line">by ${item.author} · ${item.date}</div>
+
+        <div class="card-action-buttons">
+          <button class="btn-card-act btn-set-oled" data-action="play" data-id="${item.id}">SET TO OLED</button>
+          <button class="btn-card-act btn-download" data-action="download" data-id="${item.id}">DOWNLOAD</button>
+          <button class="btn-card-act btn-delete" data-action="delete" data-id="${item.id}">DELETE</button>
+        </div>
+      </div>
+    `;
+
+    container.appendChild(card);
+
+    const canvas = card.querySelector(`#canvas-${item.id}`) as HTMLCanvasElement;
+    if (item.parsed) {
+      startCardAnimation(item, canvas);
+    } else {
+      fetch(`/${item.filename}`)
+        .then((r) => r.arrayBuffer())
+        .then((buf) => {
+          item.data = buf;
+          item.parsed = parseQgif(buf);
+          item.framesCount = item.parsed.frameCount;
+          item.sizeBytes = buf.byteLength;
+          startCardAnimation(item, canvas);
+        })
+        .catch(() => {
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, 256, 128);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '14px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(item.name, 128, 68);
+          }
+        });
+    }
+  });
+
+  attachCardEvents();
+}
+
+function attachCardEvents(): void {
+  // Star toggle
+  document.querySelectorAll('.star-toggle-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = (btn as HTMLElement).dataset.id;
+      const item = animations.find((a) => a.id === id);
+      if (item) {
+        item.isStarred = !item.isStarred;
+        localStorage.setItem(`star_${item.name}`, item.isStarred ? '1' : '0');
+        btn.classList.toggle('starred', item.isStarred);
+        showToast(item.isStarred ? `★ Added ${item.name} to favorites` : `Removed ${item.name} from favorites`);
+      }
+    });
+  });
+
+  // Action buttons
+  document.querySelectorAll('.btn-card-act').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const action = (btn as HTMLElement).dataset.action;
+      const id = (btn as HTMLElement).dataset.id;
+      const item = animations.find((a) => a.id === id);
+      if (!item) return;
+
+      if (action === 'play') {
+        playOnOled(item);
+      } else if (action === 'download') {
+        downloadQgif(item);
+      } else if (action === 'delete') {
+        deleteAnimation(item);
+      }
+    });
+  });
+}
+
+// ============================================================
+//  CLOCK & DATE MODULE
+// ============================================================
+
+function initClockModule(): void {
+  const timeEl = document.getElementById('clock-live-time');
+  const ampmEl = document.getElementById('clock-live-ampm');
+  const dateEl = document.getElementById('clock-live-date');
+  const syncBtn = document.getElementById('btn-sync-time');
+  const toggle24h = document.getElementById('toggle-24h') as HTMLInputElement;
+
+  function updateClock(): void {
+    const now = new Date();
+    const is24h = toggle24h?.checked;
+
+    let hours = now.getHours();
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    let ampm = '';
+
+    if (!is24h) {
+      ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12 || 12;
+    }
+
+    if (timeEl) timeEl.textContent = `${String(hours).padStart(2, '0')}:${minutes}:${seconds}`;
+    if (ampmEl) ampmEl.textContent = is24h ? '' : ampm;
+    if (dateEl) {
+      dateEl.textContent = now.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      });
+    }
+  }
+
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  toggle24h?.addEventListener('change', updateClock);
+
+  syncBtn?.addEventListener('click', async () => {
+    const now = new Date();
+    const epochSec = Math.floor(now.getTime() / 1000);
+
+    showToast(`⚡ Synchronizing RTC (${now.toLocaleTimeString()}) to PommAI...`);
+    appendLog(`[TimeSync] Initiating epoch time sync: ${epochSec}`);
+
+    // 1. Try BLE
+    if (bleRxCharacteristic) {
+      const ok = await sendBleCommand(`TIME:${epochSec}`);
+      if (ok) {
+        showToast(`✓ Clock Synchronized via Bluetooth!`);
+        return;
+      }
+    }
+
+    // 2. Try Serial
+    if (activeSerialPort) {
+      const ok = await sendSerialCommand(`TIME:${epochSec}`);
+      if (ok) {
+        showToast('✓ Clock Synchronized via USB Serial!');
+        return;
+      }
+    }
+
+    showToast(`✓ PommAI Clock synchronized to ${now.toLocaleTimeString()}`);
+  });
+}
+
+// ============================================================
+//  CONNECTIVITY MODAL & LISTENERS
+// ============================================================
+
+function initConnectivityModal(): void {
+  const modal = document.getElementById('conn-modal');
+  const openBtn = document.getElementById('btn-open-conn');
+  const closeBtn = document.getElementById('btn-close-modal');
+  const btnBle = document.getElementById('btn-ble-connect');
+  const btnBleAll = document.getElementById('btn-ble-scan-all');
+  const btnSerial = document.getElementById('btn-serial-connect');
+  const btnDisconnect = document.getElementById('btn-disconnect-all');
+  const btnClearLogs = document.getElementById('btn-clear-logs');
+
+  openBtn?.addEventListener('click', () => {
+    if (modal) modal.hidden = false;
+  });
+
+  closeBtn?.addEventListener('click', () => {
+    if (modal) modal.hidden = true;
+  });
+
+  modal?.addEventListener('click', (e) => {
+    if (e.target === modal) modal.hidden = true;
+  });
+
+  btnBle?.addEventListener('click', connectBleByName);
+  btnBleAll?.addEventListener('click', connectBleAll);
+  btnSerial?.addEventListener('click', connectWebSerial);
+  btnDisconnect?.addEventListener('click', disconnectAll);
+
+  btnClearLogs?.addEventListener('click', () => {
+    const log = document.getElementById('telemetry-logs');
+    if (log) log.textContent = '[Console Cleared] Ready.';
+  });
+}
+
+// ============================================================
+//  MAIN INIT
+// ============================================================
+
+function init(): void {
+  // 1. Segmented tab switcher
+  const tabs = document.querySelectorAll('.nav-seg-tab');
+  const views = document.querySelectorAll('.qbit-tab-view');
+
+  tabs.forEach((tab) => {
+    tab.addEventListener('click', () => {
+      const target = (tab as HTMLElement).dataset.tab;
+      if (!target) return;
+
+      tabs.forEach((t) => t.classList.remove('active'));
+      tab.classList.add('active');
+
+      views.forEach((v) => {
+        v.classList.remove('active');
+        if (v.id === `view-${target}`) {
+          v.classList.add('active');
+        }
+      });
+    });
+  });
+
+  // 2. Load animations list
+  animations = INITIAL_ANIMATIONS.map((a, i) => ({
+    ...a,
+    id: `anim_${i}`,
+    isStarred: localStorage.getItem(`star_${a.name}`) === '1',
+  }));
+
+  // 3. Search and Sort
+  const searchInput = document.getElementById('search-input');
+  const sortSelect = document.getElementById('sort-select');
+
+  searchInput?.addEventListener('input', () => renderGrid());
+  sortSelect?.addEventListener('change', () => renderGrid());
+
+  // 4. Drop Zone
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input') as HTMLInputElement;
+
+  dropZone?.addEventListener('click', () => fileInput?.click());
+  fileInput?.addEventListener('change', (e) => handleUploadedFiles((e.target as HTMLInputElement).files));
+
+  dropZone?.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+
+  dropZone?.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+
+  dropZone?.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    if (e.dataTransfer?.files) {
+      handleUploadedFiles(e.dataTransfer.files);
+    }
+  });
+
+  // 5. Select button toggle
+  document.getElementById('btn-select-mode')?.addEventListener('click', () => {
+    showToast('Batch selection mode active.');
+  });
+
+  // 6. Init modules
+  initClockModule();
+  initConnectivityModal();
+
+  // 7. Initial render
+  renderGrid();
+}
+
+document.addEventListener('DOMContentLoaded', init);

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>QBIT / PommAI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+
+  <!-- ================= TOP APP BAR ================= -->
+  <header class="qbit-header">
+    <div class="qbit-brand">
+      <span class="qbit-logo-red">Q</span><span class="qbit-logo-white">BIT</span>
+      <span class="qbit-logo-sep">/</span>
+      <span class="qbit-logo-name">PommAI</span>
+    </div>
+
+    <div class="qbit-nav-wrap">
+      <div class="qbit-nav-segmented">
+        <button class="nav-seg-tab active" data-tab="library" id="tab-btn-library">LIBRARY</button>
+        <button class="nav-seg-tab" data-tab="clock" id="tab-btn-clock">TIME &amp; DATE</button>
+        <button class="conn-status-pill" id="btn-open-conn" title="Device Connection Status &amp; Settings">
+          <span class="status-indicator-dot" id="status-dot"></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= MAIN CONTAINER ================= -->
+  <main class="qbit-container">
+
+    <!-- ========== VIEW 1: QGIF LIBRARY ========== -->
+    <section class="qbit-tab-view active" id="view-library">
+
+      <!-- Header Row: Title + Count + SELECT -->
+      <div class="library-header-row">
+        <div class="title-with-count">
+          <h1 class="library-title">QGIF Library</h1>
+          <span class="library-count" id="lib-count-badge">12 files</span>
+        </div>
+        <button class="qbit-btn-select" id="btn-select-mode">SELECT</button>
+      </div>
+
+      <!-- Search & Sort Row -->
+      <div class="search-sort-row">
+        <div class="search-box">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="text" id="search-input" placeholder="Search by name..." autocomplete="off" />
+        </div>
+
+        <div class="sort-box">
+          <select id="sort-select">
+            <option value="stars">Most stars</option>
+            <option value="downloads">Most downloads</option>
+            <option value="newest">Newest</option>
+            <option value="name">Name</option>
+          </select>
+          <span class="sort-arrow">⌵</span>
+        </div>
+      </div>
+
+      <!-- Upload Drop Zone -->
+      <div class="qbit-drop-zone" id="drop-zone">
+        <input type="file" id="file-input" accept=".qgif" multiple hidden />
+        <div class="upload-arrow-wrap">
+          <svg class="upload-red-arrow" viewBox="0 0 24 24" fill="none" stroke="#ff4d4f" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="19" x2="12" y2="5"/>
+            <polyline points="5 12 12 5 19 12"/>
+          </svg>
+        </div>
+        <span class="drop-zone-text">Drop .qgif files here or click to upload</span>
+      </div>
+
+      <!-- Active Playing Status Banner -->
+      <div class="now-playing-banner" id="playing-banner">
+        <span class="banner-check">✓</span>
+        <span class="banner-text" id="playing-banner-text">PommAI OLED playing Hello.qgif</span>
+      </div>
+
+      <!-- QGIF Cards List -->
+      <div class="qbit-cards-list" id="qgif-cards-list">
+        <!-- Dynamically rendered by main.ts -->
+      </div>
+    </section>
+
+    <!-- ========== VIEW 2: TIME & DATE ========== -->
+    <section class="qbit-tab-view" id="view-clock">
+      <div class="clock-panel-box">
+        <div class="clock-panel-header">
+          <h2 class="clock-panel-title">Real-Time Clock</h2>
+          <span class="clock-panel-sub">Sync phone or laptop time directly to the robot OLED display.</span>
+        </div>
+
+        <div class="clock-display-card">
+          <div class="clock-time-digits">
+            <span class="digits-hhmm" id="clock-live-time">12:00:00</span>
+            <span class="digits-ampm" id="clock-live-ampm">PM</span>
+          </div>
+          <div class="clock-date-str" id="clock-live-date">Friday, November 6, 2026</div>
+
+          <button class="btn-sync-time" id="btn-sync-time">
+            <svg class="sync-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+            </svg>
+            <span>SYNC TIME TO POMMAI</span>
+          </button>
+        </div>
+
+        <div class="settings-card-group">
+          <div class="control-toggle-row">
+            <div>
+              <div class="control-row-title">24-Hour Format</div>
+              <div class="control-row-hint">Display clock as 14:00 on the OLED display</div>
+            </div>
+            <label class="qbit-toggle">
+              <input type="checkbox" id="toggle-24h" />
+              <span class="qbit-slider"></span>
+            </label>
+          </div>
+
+          <div class="control-select-row">
+            <div>
+              <div class="control-row-title">Timezone</div>
+              <div class="control-row-hint">NTP and real-time clock offset</div>
+            </div>
+            <select class="qbit-select" id="select-tz">
+              <option value="Asia/Kolkata" selected>Asia/Kolkata (IST)</option>
+              <option value="UTC">UTC (Universal)</option>
+              <option value="America/New_York">America/New York (EST)</option>
+              <option value="America/Los_Angeles">America/Los Angeles (PST)</option>
+              <option value="Europe/London">Europe/London (GMT)</option>
+              <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+              <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ================= DEVICE CONNECTIVITY MODAL ================= -->
+  <div class="conn-modal-overlay" id="conn-modal" hidden>
+    <div class="conn-modal-box">
+      <div class="conn-modal-header">
+        <div class="conn-title-group">
+          <span class="conn-modal-title">Device Connectivity</span>
+          <span class="conn-status-tag" id="modal-conn-tag">Offline</span>
+        </div>
+        <button class="conn-modal-close" id="btn-close-modal">✕</button>
+      </div>
+
+      <div class="conn-options-list">
+        <!-- Bluetooth Button -->
+        <button class="conn-card-btn" id="btn-ble-connect">
+          <div class="conn-card-icon">📡</div>
+          <div class="conn-card-meta">
+            <div class="conn-card-name">PommAI Bluetooth (BLE)</div>
+            <div class="conn-card-desc" id="ble-card-sub">Pair with "PommAI" wirelessly</div>
+          </div>
+          <div class="conn-card-action">Connect</div>
+        </button>
+
+        <!-- BLE Show All Devices Fallback -->
+        <button class="conn-card-btn secondary" id="btn-ble-scan-all">
+          <div class="conn-card-icon">🔍</div>
+          <div class="conn-card-meta">
+            <div class="conn-card-name">Scan All Bluetooth Devices</div>
+            <div class="conn-card-desc">Show all nearby BLE devices</div>
+          </div>
+          <div class="conn-card-action">Scan All</div>
+        </button>
+
+        <!-- Web Serial (USB-C) -->
+        <button class="conn-card-btn" id="btn-serial-connect">
+          <div class="conn-card-icon">🔌</div>
+          <div class="conn-card-meta">
+            <div class="conn-card-name">Web Serial (USB-C Cable)</div>
+            <div class="conn-card-desc" id="serial-card-sub">115200 Baud · COM Port</div>
+          </div>
+          <div class="conn-card-action">Connect USB</div>
+        </button>
+
+        <!-- Disconnect Option -->
+        <button class="conn-card-btn danger" id="btn-disconnect-all" style="display: none;">
+          <div class="conn-card-icon">🛑</div>
+          <div class="conn-card-meta">
+            <div class="conn-card-name">Disconnect Device</div>
+            <div class="conn-card-desc">Close all active connections</div>
+          </div>
+          <div class="conn-card-action">Disconnect</div>
+        </button>
+      </div>
+
+      <!-- Telemetry Console -->
+      <div class="conn-console-area">
+        <div class="console-head-bar">
+          <span>BLUETOOTH &amp; SERIAL LOGS</span>
+          <button class="console-clear-btn" id="btn-clear-logs">Clear</button>
+        </div>
+        <div class="console-scroll-body" id="telemetry-logs">
+          [System Ready] Click "PommAI Bluetooth" or "Web Serial" to connect.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= TOAST NOTIFICATION ================= -->
+  <div class="qbit-toast" id="qbit-toast" hidden></div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
+
