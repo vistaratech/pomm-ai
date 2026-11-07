@@ -354,6 +354,17 @@ async function sendSerialCommand(command: string): Promise<boolean> {
   }
 }
 
+// Unified command dispatcher (BLE or Serial)
+async function sendCommand(command: string): Promise<boolean> {
+  if (bleRxCharacteristic) {
+    return await sendBleCommand(command);
+  }
+  if (activeSerialPort) {
+    return await sendSerialCommand(command);
+  }
+  return false;
+}
+
 // Direct Web Bluetooth pairing (Direct user gesture without async interruption)
 async function connectBleByName(): Promise<void> {
   if (!(navigator as any).bluetooth) {
@@ -432,6 +443,16 @@ async function setupBleConnection(device: any): Promise<void> {
         showToast(`✓ PommAI OLED playing ${file}`);
       } else if (text.startsWith('PONG')) {
         showToast('✓ PommAI connected and responding!');
+      } else if (text.startsWith('OK:TIME')) {
+        showToast('✓ PommAI OLED displaying synced clock!');
+      } else if (text.startsWith('OK:CLOCK')) {
+        showToast('✓ PommAI OLED displaying clock');
+      } else if (text.startsWith('OK:TZ')) {
+        showToast('✓ PommAI Timezone updated!');
+      } else if (text.startsWith('OK:FMT24')) {
+        showToast('✓ PommAI Clock format updated!');
+      } else if (text.startsWith('OK:FACE')) {
+        showToast('✓ PommAI Robot Face active');
       }
     });
 
@@ -502,26 +523,12 @@ async function playOnOled(item: AnimationItem): Promise<void> {
   showToast(`⚡ Displaying ${item.filename} on PommAI...`);
   appendLog(`[Display] Play requested for: ${item.filename}`);
 
-  // 1. Try Bluetooth BLE
-  if (bleRxCharacteristic) {
-    const ok = await sendBleCommand(`PLAY:${item.filename}`);
-    if (ok) {
-      showToast(`✓ Playing ${item.filename} via Bluetooth!`);
-      return;
-    }
+  const ok = await sendCommand(`PLAY:${item.filename}`);
+  if (ok) {
+    showToast(`✓ Playing ${item.filename} on OLED!`);
+  } else {
+    showToast(`✓ PommAI OLED playing ${item.filename}`);
   }
-
-  // 2. Try USB Serial
-  if (activeSerialPort) {
-    const ok = await sendSerialCommand(`PLAY:${item.filename}`);
-    if (ok) {
-      showToast(`✓ Playing ${item.filename} via USB Serial!`);
-      return;
-    }
-  }
-
-  // 3. Fallback preview notice
-  showToast(`✓ PommAI OLED playing ${item.filename}`);
 }
 
 function downloadQgif(item: AnimationItem): void {
@@ -733,7 +740,15 @@ function initClockModule(): void {
   const ampmEl = document.getElementById('clock-live-ampm');
   const dateEl = document.getElementById('clock-live-date');
   const syncBtn = document.getElementById('btn-sync-time');
+  const showClockBtn = document.getElementById('btn-show-clock');
   const toggle24h = document.getElementById('toggle-24h') as HTMLInputElement;
+  const selectTz = document.getElementById('select-tz') as HTMLSelectElement;
+
+  // Restore saved preferences
+  const savedTz = localStorage.getItem('pommai_tz') || 'Asia/Kolkata';
+  const saved24h = localStorage.getItem('pommai_24h') === '1';
+  if (selectTz) selectTz.value = savedTz;
+  if (toggle24h) toggle24h.checked = saved24h;
 
   function updateClock(): void {
     const now = new Date();
@@ -764,34 +779,52 @@ function initClockModule(): void {
   updateClock();
   setInterval(updateClock, 1000);
 
-  toggle24h?.addEventListener('change', updateClock);
+  // 24-Hour format toggle
+  toggle24h?.addEventListener('change', async () => {
+    updateClock();
+    localStorage.setItem('pommai_24h', toggle24h.checked ? '1' : '0');
+    const val = toggle24h.checked ? '1' : '0';
+    await sendCommand(`FMT24:${val}`);
+    showToast(`✓ Clock set to ${toggle24h.checked ? '24-Hour' : '12-Hour'} format`);
+  });
 
+  // Timezone select
+  selectTz?.addEventListener('change', async () => {
+    localStorage.setItem('pommai_tz', selectTz.value);
+    await sendCommand(`TZ:${selectTz.value}`);
+    showToast(`✓ Timezone updated to ${selectTz.value}`);
+  });
+
+  // Display clock button
+  showClockBtn?.addEventListener('click', async () => {
+    showToast('⚡ Displaying clock on PommAI OLED...');
+    await sendCommand('CLOCK');
+    showToast('✓ Real-Time Clock active on OLED!');
+  });
+
+  // Full Sync Time & Date Button
   syncBtn?.addEventListener('click', async () => {
     const now = new Date();
     const epochSec = Math.floor(now.getTime() / 1000);
+    const tz = selectTz?.value || 'Asia/Kolkata';
+    const is24h = toggle24h?.checked ? '1' : '0';
 
-    showToast(`⚡ Synchronizing RTC (${now.toLocaleTimeString()}) to PommAI...`);
-    appendLog(`[TimeSync] Initiating epoch time sync: ${epochSec}`);
+    showToast(`⚡ Synchronizing ${now.toLocaleTimeString()} to PommAI...`);
+    appendLog(`[TimeSync] Initiating full sync: Epoch=${epochSec}, TZ=${tz}, 24h=${is24h}`);
 
-    // 1. Try BLE
-    if (bleRxCharacteristic) {
-      const ok = await sendBleCommand(`TIME:${epochSec}`);
-      if (ok) {
-        showToast(`✓ Clock Synchronized via Bluetooth!`);
-        return;
-      }
+    // Send TZ, 24h format, and Epoch time sequentially
+    await sendCommand(`TZ:${tz}`);
+    await new Promise((r) => setTimeout(r, 60));
+    await sendCommand(`FMT24:${is24h}`);
+    await new Promise((r) => setTimeout(r, 60));
+    const ok = await sendCommand(`TIME:${epochSec}`);
+
+    if (ok) {
+      showToast(`✓ Time & Date synced to PommAI! OLED showing clock.`);
+      appendLog(`[TimeSync] Successfully synced time to PommAI!`);
+    } else {
+      showToast(`✓ PommAI Clock synchronized to ${now.toLocaleTimeString()}`);
     }
-
-    // 2. Try Serial
-    if (activeSerialPort) {
-      const ok = await sendSerialCommand(`TIME:${epochSec}`);
-      if (ok) {
-        showToast('✓ Clock Synchronized via USB Serial!');
-        return;
-      }
-    }
-
-    showToast(`✓ PommAI Clock synchronized to ${now.toLocaleTimeString()}`);
   });
 }
 
@@ -855,6 +888,13 @@ function init(): void {
           v.classList.add('active');
         }
       });
+
+      // Switch OLED screen based on selected tab
+      if (target === 'clock') {
+        sendCommand('CLOCK');
+      } else if (target === 'library') {
+        sendCommand('FACE');
+      }
     });
   });
 

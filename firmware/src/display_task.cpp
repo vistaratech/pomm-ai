@@ -148,6 +148,54 @@ void displayPlayAnimation(const String &filename) {
     enterState(GIF_PLAYBACK);
 }
 
+static uint32_t _clockDurationMs = 20000;
+
+void displayRenderClockScreen() {
+    String timeStr = timeManagerGetFormatted();
+    String dateStr = timeManagerGetDateFormatted();
+    u8g2.clearBuffer();
+    String timePart = timeStr;
+    String ampmPart = "";
+    if (!getTimeFormat24h()) {
+        int sp = timeStr.indexOf(" AM");
+        if (sp < 0) sp = timeStr.indexOf(" PM");
+        if (sp < 0) { sp = timeStr.indexOf("AM"); if (sp < 0) sp = timeStr.indexOf("PM"); }
+        if (sp >= 0) {
+            timePart = timeStr.substring(0, sp);
+            ampmPart = timeStr.substring(sp);
+        }
+    }
+    timePart.trim();
+    ampmPart.trim();
+
+    u8g2.setFont(u8g2_font_logisoso28_tn);
+    int16_t tw = (int16_t)u8g2.getStrWidth(timePart.c_str());
+    int16_t tx = (128 - tw) / 2;
+    if (tx < 0) tx = 0;
+    u8g2.drawStr((uint8_t)tx, 38, timePart.c_str());
+
+    u8g2.setFont(u8g2_font_6x13_tr);
+    uint8_t dw = u8g2.getStrWidth(dateStr.c_str());
+    if (ampmPart.length() > 0) {
+        uint8_t aw = u8g2.getStrWidth(ampmPart.c_str());
+        int16_t line2W = (int16_t)dw + 8 + (int16_t)aw;
+        int16_t line2X = (128 - line2W) / 2;
+        if (line2X < 0) line2X = 0;
+        u8g2.drawStr((uint8_t)line2X, 58, dateStr.c_str());
+        u8g2.drawStr((uint8_t)(line2X + dw + 8), 58, ampmPart.c_str());
+    } else {
+        u8g2.drawStr((128 - dw) / 2, 58, dateStr.c_str());
+    }
+    rotateBuffer180();
+    u8g2.sendBuffer();
+}
+
+void displayShowClock(uint32_t durationMs) {
+    _clockDurationMs = durationMs;
+    enterState(HISTORY_TIME);
+    displayRenderClockScreen();
+}
+
 // ==========================================================================
 //  Settings menu: 16x16 icons for top-level (Timer, Game playground, Setting)
 //  Icon bitmaps: XBM-style, 16x16, 32 bytes each (2 bytes/row).
@@ -636,42 +684,7 @@ void displayTask(void *param) {
                             break;
                         }
                         case DOUBLE_TAP:
-                            enterState(HISTORY_TIME);
-                            {
-                                String timeStr = timeManagerGetFormatted();
-                                String dateStr = timeManagerGetDateFormatted();
-                                u8g2.clearBuffer();
-                                String timePart = timeStr;
-                                String ampmPart;
-                                if (!getTimeFormat24h()) {
-                                    int sp = timeStr.indexOf(" AM");
-                                    if (sp < 0) sp = timeStr.indexOf(" PM");
-                                    if (sp < 0) { sp = timeStr.indexOf("AM"); if (sp < 0) sp = timeStr.indexOf("PM"); }
-                                    if (sp >= 0) {
-                                        timePart = timeStr.substring(0, sp);
-                                        ampmPart = timeStr.substring(sp);
-                                    }
-                                }
-                                u8g2.setFont(u8g2_font_logisoso28_tn);
-                                int16_t tw = (int16_t)u8g2.getStrWidth(timePart.c_str());
-                                int16_t tx = (128 - tw) / 2;
-                                if (tx < 0) tx = 0;
-                                u8g2.drawStr((uint8_t)tx, 38, timePart.c_str());
-                                u8g2.setFont(u8g2_font_6x13_tr);
-                                uint8_t dw = u8g2.getStrWidth(dateStr.c_str());
-                                if (ampmPart.length() > 0) {
-                                    uint8_t aw = u8g2.getStrWidth(ampmPart.c_str());
-                                    int16_t line2W = (int16_t)dw + 4 + (int16_t)aw;
-                                    int16_t line2X = (128 - line2W) / 2;
-                                    if (line2X < 0) line2X = 0;
-                                    u8g2.drawStr((uint8_t)line2X, 58, dateStr.c_str());
-                                    u8g2.drawStr((uint8_t)(line2X + dw + 4), 58, ampmPart.c_str());
-                                } else {
-                                    u8g2.drawStr((128 - dw) / 2, 58, dateStr.c_str());
-                                }
-                                rotateBuffer180();
-                                u8g2.sendBuffer();
-                            }
+                            displayShowClock(20000);
                             break;
                         case LONG_PRESS:
                             enterSettingsMenu();
@@ -709,12 +722,8 @@ void displayTask(void *param) {
 
                 case HISTORY_TIME:
                     _stateEntryMs = now;  // reset idle timer
-                    if (gesture.type == SINGLE_TAP) {
-                        _historyIndex = 0;
-                        enterState(HISTORY_POKE);
-                        showPokeHistoryEntry(0);
-                    } else if (gesture.type == DOUBLE_TAP) {
-                        enterState(GIF_PLAYBACK);
+                    if (gesture.type == SINGLE_TAP || gesture.type == DOUBLE_TAP) {
+                        displayShowRobotFace();
                     } else if (gesture.type == LONG_PRESS) {
                         enterSettingsMenu();
                     }
@@ -1178,8 +1187,14 @@ void displayTask(void *param) {
                 break;
 
             case HISTORY_TIME:
-                if (elapsed >= HISTORY_IDLE_MS) {
-                    enterState(GIF_PLAYBACK);
+                if (_clockDurationMs > 0 && elapsed >= _clockDurationMs) {
+                    displayShowRobotFace();
+                } else {
+                    static unsigned long lastClockTick = 0;
+                    if (now - lastClockTick >= 500) {
+                        lastClockTick = now;
+                        displayRenderClockScreen();
+                    }
                 }
                 break;
 

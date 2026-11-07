@@ -16,4 +16,7 @@ void displayPlayAnimation(const String &filename);
 // Switch directly to robot face/animation
 void displayShowRobotFace();
 
+// Show real-time clock screen on OLED (with live ticking for durationMs, 0 = indefinite)
+void displayShowClock(uint32_t durationMs = 20000);
+
 #endif // DISPLAY_TASK_H

@@ -13,6 +13,7 @@
 #include "settings.h"
 #include "app_state.h"
 #include "display_task.h"
+#include "time_manager.h"
 
 // Standard Nordic UART Service (NUS) UUIDs
 #define SERVICE_UUID           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
@@ -32,13 +33,13 @@ void bleSetLed(bool on) {
     digitalWrite(ONBOARD_BLUE_LED_PIN, on ? LOW : HIGH);
 }
 
-// Process received command string
+// Process received command string (from BLE or Serial)
 static void handleCommand(const String &cmd) {
     String trimmed = cmd;
     trimmed.trim();
     if (trimmed.length() == 0) return;
 
-    Serial.printf("[BLE] Command received: %s\n", trimmed.c_str());
+    Serial.printf("[CMD] Received: %s\n", trimmed.c_str());
 
     if (trimmed.startsWith("PLAY:")) {
         String filename = trimmed.substring(5);
@@ -54,15 +55,59 @@ static void handleCommand(const String &cmd) {
         if (epoch > 0) {
             struct timeval tv = { .tv_sec = (time_t)epoch, .tv_usec = 0 };
             settimeofday(&tv, NULL);
-            Serial.printf("[BLE] Real-Time Clock updated to epoch: %ld\n", epoch);
-            displayShowRobotFace();
+            Serial.printf("[CMD] Real-Time Clock updated to epoch: %ld\n", epoch);
+            displayShowClock(25000); // Display clock on OLED for 25s with live ticking!
             bleNotify("OK:TIME");
         }
+    } else if (trimmed.startsWith("TZ:")) {
+        String tz = trimmed.substring(3);
+        tz.trim();
+        if (tz.length() > 0) {
+            timeManagerSetTimezone(tz);
+            saveSettings();
+            displayShowClock(25000); // Re-render with new timezone
+            bleNotify("OK:TZ:" + tz);
+        }
+    } else if (trimmed.startsWith("FMT24:")) {
+        String fmt = trimmed.substring(6);
+        fmt.trim();
+        bool is24 = (fmt == "1" || fmt.equalsIgnoreCase("true"));
+        setTimeFormat24h(is24);
+        saveSettings();
+        displayShowClock(25000); // Re-render with new 24h format
+        bleNotify("OK:FMT24");
+    } else if (trimmed.equalsIgnoreCase("CLOCK") || trimmed.startsWith("CLOCK:")) {
+        displayShowClock(30000); // Show clock on OLED!
+        bleNotify("OK:CLOCK");
+    } else if (trimmed.equalsIgnoreCase("FACE") || trimmed.equalsIgnoreCase("STOP")) {
+        displayShowRobotFace();
+        bleNotify("OK:FACE");
     } else if (trimmed.equalsIgnoreCase("PING")) {
         bleNotify("PONG:PommAI");
     } else if (trimmed.equalsIgnoreCase("INFO")) {
         String info = "INFO:NAME=PommAI;ID=" + getDeviceId() + ";VER=1.0.0";
         bleNotify(info);
+    }
+}
+
+// Background FreeRTOS task to receive commands over USB-C Serial
+static void serialCommandTask(void *param) {
+    (void)param;
+    String line = "";
+    for (;;) {
+        while (Serial.available()) {
+            char c = (char)Serial.read();
+            if (c == '\n' || c == '\r') {
+                if (line.length() > 0) {
+                    handleCommand(line);
+                    line = "";
+                }
+            } else {
+                line += c;
+                if (line.length() > 128) line = "";
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
 
@@ -154,6 +199,9 @@ void bleInit() {
     BLEDevice::startAdvertising();
 
     Serial.println("[BLE] PommAI Bluetooth is now advertising as 'PommAI'!");
+
+    // 8. Start background Serial command listener (for USB-C Web Serial)
+    xTaskCreate(serialCommandTask, "serial_cmd", 3072, NULL, 1, NULL);
 }
 
 bool bleIsConnected() {
