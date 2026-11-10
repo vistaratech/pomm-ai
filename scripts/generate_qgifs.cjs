@@ -1395,6 +1395,132 @@ const generators = {
     }
     return buildQgif(frames, 65);
   },
+
+  // 41. action_pingpong: High-speed table tennis rally (optimized 20 frames)
+  action_pingpong: () => {
+    const frames = [];
+    const count = 20;
+    for (let f = 0; f < count; f++) {
+      const c = new QgifCanvas();
+      // Center net
+      for (let y = 4; y < H - 4; y += 6) c.drawLine(64, y, 64, y + 3);
+      // Ball
+      const bx = f < 10 ? 18 + f * 9 : 99 - (f - 10) * 9;
+      const by = 20 + Math.round(Math.sin((f / 10) * Math.PI) * 24);
+      c.drawRect(bx, by, 4, 4, true);
+      // Left paddle
+      c.drawRect(12, Math.max(6, Math.min(42, by - 6)), 4, 16, true);
+      // Right paddle
+      c.drawRect(112, Math.max(6, Math.min(42, by - 4)), 4, 16, true);
+      frames.push(c.getBuffer());
+    }
+    return buildQgif(frames, 65);
+  },
+
+  // 42. theme_bee: Cute buzzing bumblebee with flapping wings (optimized 16 frames)
+  theme_bee: () => {
+    const frames = [];
+    const count = 16;
+    for (let f = 0; f < count; f++) {
+      const c = new QgifCanvas();
+      const bx = 64 + Math.round(Math.sin((f / count) * Math.PI * 2) * 8);
+      const by = 32 + Math.round(Math.cos((f / count) * Math.PI * 2) * 4);
+      const wingUp = (f % 4 < 2);
+      // Bee body
+      c.drawCircle(bx, by, 12, true);
+      // Stripes
+      c.drawRect(bx - 3, by - 10, 3, 20, true, false);
+      c.drawRect(bx + 3, by - 10, 3, 20, true, false);
+      // Wings
+      if (wingUp) {
+        c.drawCircle(bx - 6, by - 14, 6, false);
+        c.drawCircle(bx + 6, by - 14, 6, false);
+      } else {
+        c.drawCircle(bx - 8, by - 6, 6, false);
+        c.drawCircle(bx + 8, by - 6, 6, false);
+      }
+      // Stinger
+      c.drawLine(bx + 12, by, bx + 16, by);
+      frames.push(c.getBuffer());
+    }
+    return buildQgif(frames, 60);
+  },
+
+  // 43. eye_wink: Smooth winking eye with sparkle (optimized 16 frames)
+  eye_wink: () => {
+    const frames = [];
+    const count = 16;
+    for (let f = 0; f < count; f++) {
+      const c = new QgifCanvas();
+      const isWink = (f >= 4 && f <= 11);
+      // Left eye stays open
+      c.drawCircle(42, 32, 10, false);
+      c.drawCircle(42, 32, 5, true);
+      // Right eye winks
+      if (isWink) {
+        c.drawThickLine(76, 32, 96, 32, 3);
+        // Little sparkle glint
+        c.drawLine(98, 26, 104, 26);
+        c.drawLine(101, 23, 101, 29);
+      } else {
+        c.drawCircle(86, 32, 10, false);
+        c.drawCircle(86, 32, 5, true);
+      }
+      // Smile
+      c.drawLine(58, 48, 64, 52);
+      c.drawLine(64, 52, 70, 48);
+      frames.push(c.getBuffer());
+    }
+    return buildQgif(frames, 70);
+  },
+
+  // 44. action_yawn: Sleepy yawning mouth opening (optimized 16 frames)
+  action_yawn: () => {
+    const frames = [];
+    const count = 16;
+    for (let f = 0; f < count; f++) {
+      const c = new QgifCanvas();
+      const yawnProg = Math.sin((f / count) * Math.PI);
+      const mouthH = Math.round(yawnProg * 16);
+      // Squeezed eyes
+      c.drawThickLine(32, 28, 52, 28, 2);
+      c.drawThickLine(76, 28, 96, 28, 2);
+      // Big round yawn mouth
+      if (mouthH > 2) {
+        c.drawCircle(64, 44, Math.round(mouthH * 0.7), true);
+      } else {
+        c.drawLine(58, 44, 70, 44);
+      }
+      frames.push(c.getBuffer());
+    }
+    return buildQgif(frames, 90);
+  },
+
+  // 45. effect_rotate: Rotating 3D geometric wireframe cube (optimized 16 frames)
+  effect_rotate: () => {
+    const frames = [];
+    const count = 16;
+    const cx = 64;
+    const cy = 32;
+    for (let f = 0; f < count; f++) {
+      const c = new QgifCanvas();
+      const angle = (f / count) * Math.PI * 2;
+      const r = 16;
+      for (let i = 0; i < 4; i++) {
+        const a1 = angle + (i * Math.PI) / 2;
+        const a2 = angle + ((i + 1) * Math.PI) / 2;
+        const x1 = cx + Math.cos(a1) * r;
+        const y1 = cy + Math.sin(a1) * (r * 0.6);
+        const x2 = cx + Math.cos(a2) * r;
+        const y2 = cy + Math.sin(a2) * (r * 0.6);
+        c.drawLine(x1, y1 - 8, x2, y2 - 8);
+        c.drawLine(x1, y1 + 8, x2, y2 + 8);
+        c.drawLine(x1, y1 - 8, x1, y1 + 8);
+      }
+      frames.push(c.getBuffer());
+    }
+    return buildQgif(frames, 70);
+  },
 };
 
 // Target directories
@@ -1419,3 +1545,4 @@ for (const [name, fn] of Object.entries(generators)) {
 }
 
 console.log(`Successfully generated ${generatedCount} QGIF animation files!`);
+

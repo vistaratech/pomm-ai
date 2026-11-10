@@ -30,6 +30,10 @@ static bool               oldDeviceConnected = false;
 static uint8_t  _incomingPhotoBuf[1024];
 static uint16_t _incomingPhotoOffset = 0;
 
+// Dynamic QGIF receiving
+static File   _incomingQgifFile;
+static String _incomingQgifName = "";
+
 // ESP32-C3 Super Mini onboard Blue LED pin (GPIO 8, Active LOW: LOW = ON, HIGH = OFF)
 #define ONBOARD_BLUE_LED_PIN 8
 
@@ -50,8 +54,49 @@ static void handleCommand(const String &cmd) {
         String filename = trimmed.substring(5);
         filename.trim();
         if (filename.length() > 0) {
-            displayPlayAnimation(filename);
-            bleNotify("OK:PLAY:" + filename);
+            if (!filename.endsWith(".qgif")) filename += ".qgif";
+            if (LittleFS.exists("/" + filename)) {
+                displayPlayAnimation(filename);
+                bleNotify("OK:PLAY:" + filename);
+                Serial.printf("[PLAY] Playing %s on OLED\n", filename.c_str());
+            } else {
+                Serial.printf("[PLAY] File not found on LittleFS: /%s\n", filename.c_str());
+                bleNotify("ERR:NO_FILE:" + filename);
+            }
+        }
+    } else if (trimmed.startsWith("QGIF_START:")) {
+        _incomingQgifName = trimmed.substring(11);
+        _incomingQgifName.trim();
+        if (!_incomingQgifName.endsWith(".qgif")) _incomingQgifName += ".qgif";
+        if (_incomingQgifFile) _incomingQgifFile.close();
+        _incomingQgifFile = LittleFS.open("/" + _incomingQgifName, "w");
+        if (_incomingQgifFile) {
+            Serial.printf("[QGIF] Receiving file: /%s\n", _incomingQgifName.c_str());
+            bleNotify("OK:QGIF_READY");
+        } else {
+            Serial.printf("[QGIF] Failed to open /%s for write\n", _incomingQgifName.c_str());
+            bleNotify("ERR:QGIF_OPEN_FAILED");
+        }
+    } else if (trimmed.startsWith("QGIF_DATA:")) {
+        String hex = trimmed.substring(10);
+        hex.trim();
+        if (_incomingQgifFile) {
+            uint8_t chunk[256];
+            int count = 0;
+            for (unsigned int i = 0; i + 1 < hex.length() && count < 256; i += 2) {
+                char bChars[3] = { hex[i], hex[i + 1], '\0' };
+                chunk[count++] = (uint8_t)strtol(bChars, NULL, 16);
+            }
+            if (count > 0) {
+                _incomingQgifFile.write(chunk, count);
+            }
+        }
+    } else if (trimmed.equalsIgnoreCase("QGIF_END")) {
+        if (_incomingQgifFile) {
+            _incomingQgifFile.close();
+            Serial.printf("[QGIF] Saved /%s successfully! Playing on OLED...\n", _incomingQgifName.c_str());
+            displayPlayAnimation(_incomingQgifName);
+            bleNotify("OK:PLAY:" + _incomingQgifName);
         }
     } else if (trimmed.startsWith("PHOTO_START")) {
         _incomingPhotoOffset = 0;
@@ -146,7 +191,7 @@ static void serialCommandTask(void *param) {
                 }
             } else {
                 line += c;
-                if (line.length() > 128) line = "";
+                if (line.length() > 1024) line = "";
             }
         }
         vTaskDelay(pdMS_TO_TICKS(50));
@@ -196,6 +241,7 @@ void bleInit() {
 
     // 1. Initialize BLE with name "PommAI"
     BLEDevice::init("PommAI");
+    BLEDevice::setMTU(512);
 
     // 2. Create BLE Server
     pServer = BLEDevice::createServer();

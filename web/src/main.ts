@@ -733,12 +733,27 @@ async function sendBleCommand(command: string): Promise<boolean> {
   if (!bleRxCharacteristic) return false;
   try {
     const encoder = new TextEncoder();
-    await bleRxCharacteristic.writeValue(encoder.encode(command + '\n'));
+    const data = encoder.encode(command + '\n');
+    if (typeof bleRxCharacteristic.writeValueWithoutResponse === 'function') {
+      await bleRxCharacteristic.writeValueWithoutResponse(data);
+    } else if (typeof bleRxCharacteristic.writeValueWithResponse === 'function') {
+      await bleRxCharacteristic.writeValueWithResponse(data);
+    } else {
+      await bleRxCharacteristic.writeValue(data);
+    }
     appendLog(`[Bluetooth TX] → ${command}`);
     return true;
   } catch (err: any) {
-    appendLog(`[Bluetooth TX Error] ${err.message}`);
-    return false;
+    appendLog(`[Bluetooth TX Note] ${err.message}`);
+    try {
+      const encoder = new TextEncoder();
+      await bleRxCharacteristic.writeValue(encoder.encode(command + '\n'));
+      appendLog(`[Bluetooth TX Fallback] → ${command}`);
+      return true;
+    } catch (e2: any) {
+      appendLog(`[Bluetooth TX Failed] ${e2.message}`);
+      return false;
+    }
   }
 }
 
@@ -844,6 +859,11 @@ async function setupBleConnection(device: any): Promise<void> {
         const file = text.replace('OK:PLAY:', '').trim();
         setPlayingBanner(file);
         showToast(`✓ PommAI OLED playing ${file}`);
+      } else if (text.startsWith('ERR:NO_FILE:')) {
+        const file = text.replace('ERR:NO_FILE:', '').trim();
+        appendLog(`[Flash Notice] File /${file} not found on robot LittleFS, uploading over Bluetooth...`);
+        showToast(`⚡ Uploading ${file} to PommAI flash...`);
+        uploadQgifToRobot(file);
       } else if (text.startsWith('PONG')) {
         showToast('✓ PommAI connected and responding!');
       } else if (text.startsWith('OK:TIME')) {
@@ -926,16 +946,57 @@ function disconnectAll(): void {
 //  ACTIONS: SET TO OLED / DOWNLOAD / DELETE / UPLOAD
 // ============================================================
 
+async function uploadQgifToRobot(filename: string): Promise<boolean> {
+  const item = animations.find((a) => a.filename === filename);
+  let data: ArrayBuffer | undefined = item?.data;
+  if (!data) {
+    try {
+      const res = await fetch(`/${filename}`);
+      data = await res.arrayBuffer();
+    } catch {
+      showToast(`⚠️ Could not load ${filename}`);
+      return false;
+    }
+  }
+
+  showToast(`⚡ Uploading ${filename} to PommAI flash...`);
+  appendLog(`[QGIF] Uploading ${filename} (${data.byteLength} bytes)...`);
+
+  await sendCommand(`QGIF_START:${filename}`);
+  await new Promise((r) => setTimeout(r, 60));
+
+  const bytes = new Uint8Array(data);
+  const chunkSize = 64; // 64 bytes = 128 hex chars
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const slice = bytes.subarray(i, i + chunkSize);
+    const hex = Array.from(slice).map((b) => b.toString(16).padStart(2, '0')).join('');
+    await sendCommand(`QGIF_DATA:${hex}`);
+    await new Promise((r) => setTimeout(r, 20));
+  }
+
+  await sendCommand('QGIF_END');
+  showToast(`✓ ${filename} uploaded & playing on OLED!`);
+  appendLog(`[QGIF] Upload complete for ${filename}`);
+  return true;
+}
+
 async function playOnOled(item: AnimationItem): Promise<void> {
+  if (!bleRxCharacteristic && !activeSerialPort) {
+    showToast('⚠️ Please connect Bluetooth or USB first!');
+    const modal = document.getElementById('conn-modal');
+    if (modal) modal.hidden = false;
+    return;
+  }
+
   setPlayingBanner(item.filename);
   showToast(`⚡ Displaying ${item.filename} on PommAI...`);
   appendLog(`[Display] Play requested for: ${item.filename}`);
 
   const ok = await sendCommand(`PLAY:${item.filename}`);
   if (ok) {
-    showToast(`✓ Playing ${item.filename} on OLED!`);
+    showToast(`✓ Command sent: Playing ${item.filename} on OLED!`);
   } else {
-    showToast(`✓ PommAI OLED playing ${item.filename}`);
+    showToast(`⚠️ Could not send command to PommAI`);
   }
 }
 
