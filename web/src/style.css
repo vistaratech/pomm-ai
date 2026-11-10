@@ -58,14 +58,20 @@ button, input, select {
   position: sticky;
   top: 0;
   z-index: 50;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   padding: 14px 20px;
   background-color: rgba(10, 10, 13, 0.92);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--border-subtle);
+}
+
+.qbit-header-inner {
+  max-width: 520px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
 }
 
 .qbit-brand {
@@ -96,74 +102,6 @@ button, input, select {
   color: #d1d5db;
   font-weight: 600;
   font-size: 16px;
-}
-
-/* Segmented Tabs Control in Header */
-.qbit-nav-wrap {
-  display: flex;
-  align-items: center;
-}
-
-.qbit-nav-segmented {
-  display: flex;
-  align-items: center;
-  background-color: #1a1a1f;
-  border: 1px solid #2a2a32;
-  border-radius: 30px;
-  padding: 3px;
-  gap: 2px;
-}
-
-.nav-seg-tab {
-  background: transparent;
-  color: #9ca3af;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.4px;
-  padding: 8px 18px;
-  border-radius: 24px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.nav-seg-tab.active {
-  background-color: #ffffff;
-  color: #0a0a0d;
-}
-
-.nav-seg-tab:hover:not(.active) {
-  color: #ffffff;
-}
-
-/* Quick Connection Pill Button in Header */
-.conn-pill-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background-color: #171820;
-  border: 1px solid #282936;
-  border-radius: 9999px;
-  padding: 6px 14px;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  user-select: none;
-}
-
-.conn-pill-btn:hover {
-  background-color: #20222e;
-  border-color: #3b82f6;
-  transform: translateY(-1px);
-}
-
-.conn-pill-btn:active {
-  transform: scale(0.96);
-}
-
-.conn-pill-label {
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.3px;
-  color: #e2e8f0;
 }
 
 .status-indicator-dot {

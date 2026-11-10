@@ -299,9 +299,7 @@ function setPlayingBanner(filename: string): void {
 // ============================================================
 
 function updateConnectionUI(connected: boolean, name: string = 'PommAI', type: string = 'BLE'): void {
-  const dot = document.getElementById('status-dot');
   const dockDot = document.getElementById('dock-status-dot');
-  const headerText = document.getElementById('header-conn-text');
   const dockLabel = document.getElementById('dock-conn-label');
   const tag = document.getElementById('modal-conn-tag');
   const disBtn = document.getElementById('btn-disconnect-all');
@@ -309,9 +307,7 @@ function updateConnectionUI(connected: boolean, name: string = 'PommAI', type: s
   const serialCardSub = document.getElementById('serial-card-sub');
 
   if (connected) {
-    dot?.classList.add('online');
     dockDot?.classList.add('online');
-    if (headerText) headerText.textContent = type === 'BLE' ? 'BLE Active' : 'USB Active';
     if (dockLabel) dockLabel.textContent = 'Online';
     if (tag) {
       tag.textContent = `${name} Online (${type})`;
@@ -321,9 +317,7 @@ function updateConnectionUI(connected: boolean, name: string = 'PommAI', type: s
     if (type === 'BLE' && bleCardSub) bleCardSub.textContent = `Connected to ${name}`;
     if (type === 'Serial' && serialCardSub) serialCardSub.textContent = `Connected via USB`;
   } else {
-    dot?.classList.remove('online');
     dockDot?.classList.remove('online');
-    if (headerText) headerText.textContent = 'Connect';
     if (dockLabel) dockLabel.textContent = 'Connect';
     if (tag) {
       tag.textContent = 'Offline';
@@ -1146,7 +1140,6 @@ function initPhotoStudio(): void {
 
 function initConnectivityModal(): void {
   const modal = document.getElementById('conn-modal');
-  const openBtn = document.getElementById('btn-open-conn');
   const dockOpenBtn = document.getElementById('btn-dock-conn');
   const closeBtn = document.getElementById('btn-close-modal');
   const btnBle = document.getElementById('btn-ble-connect');
@@ -1154,10 +1147,6 @@ function initConnectivityModal(): void {
   const btnSerial = document.getElementById('btn-serial-connect');
   const btnDisconnect = document.getElementById('btn-disconnect-all');
   const btnClearLogs = document.getElementById('btn-clear-logs');
-
-  openBtn?.addEventListener('click', () => {
-    if (modal) modal.hidden = false;
-  });
 
   dockOpenBtn?.addEventListener('click', () => {
     if (modal) modal.hidden = false;
@@ -1187,7 +1176,7 @@ function initConnectivityModal(): void {
 // ============================================================
 
 function switchTab(target: string): void {
-  const allTabs = document.querySelectorAll('.nav-seg-tab, .dock-tab:not(.dock-connect-btn)');
+  const allTabs = document.querySelectorAll('.dock-tab:not(.dock-connect-btn)');
   const views = document.querySelectorAll('.qbit-tab-view');
 
   allTabs.forEach((t) => {
@@ -1218,8 +1207,8 @@ function switchTab(target: string): void {
 }
 
 function init(): void {
-  // 1. Unified tab switcher (Desktop segmented control + Mobile floating paper dock)
-  const allTabs = document.querySelectorAll('.nav-seg-tab, .dock-tab:not(.dock-connect-btn)');
+  // 1. Floating Paper Bottom Dock Tab Switcher
+  const allTabs = document.querySelectorAll('.dock-tab:not(.dock-connect-btn)');
   allTabs.forEach((tab) => {
     tab.addEventListener('click', () => {
       const target = (tab as HTMLElement).dataset.tab;
