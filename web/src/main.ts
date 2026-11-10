@@ -300,6 +300,9 @@ function setPlayingBanner(filename: string): void {
 
 function updateConnectionUI(connected: boolean, name: string = 'PommAI', type: string = 'BLE'): void {
   const dot = document.getElementById('status-dot');
+  const dockDot = document.getElementById('dock-status-dot');
+  const headerText = document.getElementById('header-conn-text');
+  const dockLabel = document.getElementById('dock-conn-label');
   const tag = document.getElementById('modal-conn-tag');
   const disBtn = document.getElementById('btn-disconnect-all');
   const bleCardSub = document.getElementById('ble-card-sub');
@@ -307,8 +310,11 @@ function updateConnectionUI(connected: boolean, name: string = 'PommAI', type: s
 
   if (connected) {
     dot?.classList.add('online');
+    dockDot?.classList.add('online');
+    if (headerText) headerText.textContent = type === 'BLE' ? 'BLE Active' : 'USB Active';
+    if (dockLabel) dockLabel.textContent = 'Online';
     if (tag) {
-      tag.textContent = `${name} Online`;
+      tag.textContent = `${name} Online (${type})`;
       tag.classList.add('online');
     }
     if (disBtn) disBtn.style.display = 'flex';
@@ -316,6 +322,9 @@ function updateConnectionUI(connected: boolean, name: string = 'PommAI', type: s
     if (type === 'Serial' && serialCardSub) serialCardSub.textContent = `Connected via USB`;
   } else {
     dot?.classList.remove('online');
+    dockDot?.classList.remove('online');
+    if (headerText) headerText.textContent = 'Connect';
+    if (dockLabel) dockLabel.textContent = 'Connect';
     if (tag) {
       tag.textContent = 'Offline';
       tag.classList.remove('online');
@@ -1138,6 +1147,7 @@ function initPhotoStudio(): void {
 function initConnectivityModal(): void {
   const modal = document.getElementById('conn-modal');
   const openBtn = document.getElementById('btn-open-conn');
+  const dockOpenBtn = document.getElementById('btn-dock-conn');
   const closeBtn = document.getElementById('btn-close-modal');
   const btnBle = document.getElementById('btn-ble-connect');
   const btnBleAll = document.getElementById('btn-ble-scan-all');
@@ -1146,6 +1156,10 @@ function initConnectivityModal(): void {
   const btnClearLogs = document.getElementById('btn-clear-logs');
 
   openBtn?.addEventListener('click', () => {
+    if (modal) modal.hidden = false;
+  });
+
+  dockOpenBtn?.addEventListener('click', () => {
     if (modal) modal.hidden = false;
   });
 
@@ -1172,36 +1186,44 @@ function initConnectivityModal(): void {
 //  MAIN INIT
 // ============================================================
 
-function init(): void {
-  // 1. Segmented tab switcher
-  const tabs = document.querySelectorAll('.nav-seg-tab');
+function switchTab(target: string): void {
+  const allTabs = document.querySelectorAll('.nav-seg-tab, .dock-tab:not(.dock-connect-btn)');
   const views = document.querySelectorAll('.qbit-tab-view');
 
-  tabs.forEach((tab) => {
+  allTabs.forEach((t) => {
+    if ((t as HTMLElement).dataset.tab === target) {
+      t.classList.add('active');
+    } else {
+      t.classList.remove('active');
+    }
+  });
+
+  views.forEach((v) => {
+    v.classList.remove('active');
+    if (v.id === `view-${target}`) {
+      v.classList.add('active');
+    }
+  });
+
+  // Switch OLED screen based on selected tab
+  if (target === 'clock') {
+    sendCommand('CLOCK');
+  } else if (target === 'library') {
+    sendCommand('FACE');
+  }
+
+  if (target !== 'photo') {
+    stopWebcamStream();
+  }
+}
+
+function init(): void {
+  // 1. Unified tab switcher (Desktop segmented control + Mobile floating paper dock)
+  const allTabs = document.querySelectorAll('.nav-seg-tab, .dock-tab:not(.dock-connect-btn)');
+  allTabs.forEach((tab) => {
     tab.addEventListener('click', () => {
       const target = (tab as HTMLElement).dataset.tab;
-      if (!target) return;
-
-      tabs.forEach((t) => t.classList.remove('active'));
-      tab.classList.add('active');
-
-      views.forEach((v) => {
-        v.classList.remove('active');
-        if (v.id === `view-${target}`) {
-          v.classList.add('active');
-        }
-      });
-
-      // Switch OLED screen based on selected tab
-      if (target === 'clock') {
-        sendCommand('CLOCK');
-      } else if (target === 'library') {
-        sendCommand('FACE');
-      }
-
-      if (target !== 'photo') {
-        stopWebcamStream();
-      }
+      if (target) switchTab(target);
     });
   });
 

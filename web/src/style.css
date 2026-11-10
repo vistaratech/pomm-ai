@@ -135,20 +135,35 @@ button, input, select {
   color: #ffffff;
 }
 
-/* Connection Status Dot inside Header */
-.conn-status-pill {
-  background: transparent;
-  cursor: pointer;
-  padding: 6px 10px;
+/* Quick Connection Pill Button in Header */
+.conn-pill-btn {
   display: flex;
   align-items: center;
-  justify-content: center;
-  border-radius: 20px;
-  transition: background 0.2s ease;
+  gap: 8px;
+  background-color: #171820;
+  border: 1px solid #282936;
+  border-radius: 9999px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
 }
 
-.conn-status-pill:hover {
-  background: rgba(255, 255, 255, 0.08);
+.conn-pill-btn:hover {
+  background-color: #20222e;
+  border-color: #3b82f6;
+  transform: translateY(-1px);
+}
+
+.conn-pill-btn:active {
+  transform: scale(0.96);
+}
+
+.conn-pill-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: #e2e8f0;
 }
 
 .status-indicator-dot {
@@ -169,7 +184,7 @@ button, input, select {
 .qbit-container {
   max-width: 520px;
   margin: 0 auto;
-  padding: 24px 16px 80px 16px;
+  padding: 20px 16px calc(100px + env(safe-area-inset-bottom, 16px)) 16px;
 }
 
 .qbit-tab-view {
@@ -178,12 +193,18 @@ button, input, select {
 
 .qbit-tab-view.active {
   display: block;
-  animation: fadeIn 0.2s ease;
+  animation: paperSheetSlide 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes paperSheetSlide {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* ================= LIBRARY VIEW ================= */
@@ -374,34 +395,45 @@ button, input, select {
 }
 
 .qbit-card {
-  background-color: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 16px;
+  background: linear-gradient(180deg, #15161e 0%, #111218 100%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 18px;
   padding: 16px;
-  transition: transform 0.15s ease, border-color 0.15s ease;
+  box-shadow: 0 4px 18px -2px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+  position: relative;
 }
 
 .qbit-card:hover {
-  border-color: #2f2f3a;
+  border-color: rgba(255, 255, 255, 0.16);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.65), 0 2px 6px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.qbit-card:active {
+  transform: scale(0.985);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
 /* OLED Screen Bezel Preview inside Card */
 .qbit-preview-screen {
   position: relative;
-  background-color: #000000;
-  border: 1px solid #1c1c22;
-  border-radius: 12px;
-  height: 190px;
+  background-color: #050508;
+  border: 1px solid #1c1d27;
+  border-radius: 14px;
+  min-height: 170px;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   margin-bottom: 14px;
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.8), 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .qbit-preview-screen canvas {
-  width: 256px;
-  height: 128px;
+  width: min(256px, 90%);
+  height: auto;
+  aspect-ratio: 2 / 1;
   image-rendering: pixelated;
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
@@ -1115,4 +1147,195 @@ button, input, select {
 .btn-act-icon {
   width: 18px;
   height: 18px;
+}
+
+/* ============================================================
+   FLOATING TACTILE PAPER BOTTOM DOCK
+   Ergonomic thumb navigation with paper physics
+   ============================================================ */
+
+.paper-bottom-dock {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 150;
+  pointer-events: none;
+  padding: 0 16px calc(14px + env(safe-area-inset-bottom, 0px)) 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.dock-pill-wrap {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  background: rgba(18, 19, 26, 0.88);
+  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 32px;
+  padding: 6px 8px;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 16px 36px -6px rgba(0, 0, 0, 0.75), 0 4px 12px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  gap: 4px;
+}
+
+.dock-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 6px;
+  background: transparent;
+  border: none;
+  border-radius: 22px;
+  color: #8b92a3;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  user-select: none;
+}
+
+.dock-tab:active {
+  transform: scale(0.90);
+}
+
+.dock-tab:hover:not(.active) {
+  color: #e2e8f0;
+}
+
+.dock-tab.active {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.16), 0 4px 12px rgba(0, 0, 0, 0.4);
+  transform: translateY(-2px);
+}
+
+.dock-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  width: 16px;
+  height: 3px;
+  background: #ff4d4f;
+  border-radius: 3px;
+  box-shadow: 0 0 8px rgba(255, 77, 79, 0.75);
+  animation: dockBounce 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes dockBounce {
+  0% { transform: scaleX(0.4); opacity: 0; }
+  100% { transform: scaleX(1); opacity: 1; }
+}
+
+.dock-icon {
+  width: 20px;
+  height: 20px;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dock-tab.active .dock-icon {
+  transform: scale(1.12);
+  color: #ffffff;
+}
+
+.dock-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  line-height: 1;
+}
+
+.dock-dot-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  width: 20px;
+}
+
+.dock-dot-wrap .status-indicator-dot {
+  width: 10px;
+  height: 10px;
+}
+
+/* ============================================================
+   RESPONSIVE MOBILE ERGONOMICS (@media max-width: 640px)
+   ============================================================ */
+
+@media (max-width: 640px) {
+  .desktop-nav {
+    display: none !important;
+  }
+
+  .qbit-header {
+    padding: 12px 16px;
+  }
+
+  .qbit-container {
+    padding: 16px 14px calc(92px + env(safe-area-inset-bottom, 16px)) 14px;
+  }
+
+  .library-header-row {
+    margin-bottom: 16px;
+  }
+
+  .library-title {
+    font-size: 22px;
+  }
+
+  .search-sort-row {
+    gap: 8px;
+  }
+
+  .sort-box select {
+    font-size: 12px;
+    padding: 10px 28px 10px 10px;
+  }
+
+  .qbit-preview-screen {
+    min-height: 150px;
+  }
+
+  /* Mobile Bottom Sheet Presentation for Connection Modal */
+  .conn-modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .conn-modal-box {
+    border-radius: 24px 24px 0 0;
+    max-width: 100%;
+    max-height: 85vh;
+    overflow-y: auto;
+    padding: 22px 18px calc(24px + env(safe-area-inset-bottom, 16px)) 18px;
+    border-bottom: none;
+    box-shadow: 0 -12px 36px rgba(0, 0, 0, 0.7);
+    animation: sheetSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes sheetSlideUp {
+    from {
+      transform: translateY(100%);
+      opacity: 0.8;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  .photo-actions-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .digits-hhmm {
+    font-size: 38px;
+  }
 }

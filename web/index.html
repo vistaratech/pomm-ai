@@ -20,14 +20,18 @@
     </div>
 
     <div class="qbit-nav-wrap">
-      <div class="qbit-nav-segmented">
+      <!-- Desktop Segmented Tabs (hidden on mobile) -->
+      <div class="qbit-nav-segmented desktop-nav">
         <button class="nav-seg-tab active" data-tab="library" id="tab-btn-library">LIBRARY</button>
         <button class="nav-seg-tab" data-tab="clock" id="tab-btn-clock">TIME &amp; DATE</button>
         <button class="nav-seg-tab" data-tab="photo" id="tab-btn-photo">PHOTO &amp; CAM</button>
-        <button class="conn-status-pill" id="btn-open-conn" title="Device Connection Status &amp; Settings">
-          <span class="status-indicator-dot" id="status-dot"></span>
-        </button>
       </div>
+
+      <!-- Quick Connection Pill Button -->
+      <button class="conn-pill-btn" id="btn-open-conn" title="Device Connection Status &amp; Settings">
+        <span class="status-indicator-dot" id="status-dot"></span>
+        <span class="conn-pill-label" id="header-conn-text">Connect</span>
+      </button>
     </div>
   </header>
 
@@ -250,6 +254,42 @@
     </section>
 
   </main>
+
+  <!-- ================= FLOATING TACTILE PAPER BOTTOM DOCK ================= -->
+  <nav class="paper-bottom-dock" id="bottom-dock">
+    <div class="dock-pill-wrap">
+      <button class="dock-tab active" data-tab="library">
+        <svg class="dock-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+        </svg>
+        <span class="dock-label">Library</span>
+      </button>
+
+      <button class="dock-tab" data-tab="clock">
+        <svg class="dock-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <span class="dock-label">Clock</span>
+      </button>
+
+      <button class="dock-tab" data-tab="photo">
+        <svg class="dock-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+          <circle cx="12" cy="13" r="4"/>
+        </svg>
+        <span class="dock-label">Studio</span>
+      </button>
+
+      <button class="dock-tab dock-connect-btn" id="btn-dock-conn">
+        <span class="dock-dot-wrap">
+          <span class="status-indicator-dot" id="dock-status-dot"></span>
+        </span>
+        <span class="dock-label" id="dock-conn-label">Connect</span>
+      </button>
+    </div>
+  </nav>
 
   <!-- ================= DEVICE CONNECTIVITY MODAL ================= -->
   <div class="conn-modal-overlay" id="conn-modal" hidden>
