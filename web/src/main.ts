@@ -453,6 +453,11 @@ async function setupBleConnection(device: any): Promise<void> {
         showToast('✓ PommAI Clock format updated!');
       } else if (text.startsWith('OK:FACE')) {
         showToast('✓ PommAI Robot Face active');
+      } else if (text.startsWith('OK:PHOTO_SHOWN')) {
+        showToast('✓ Photo displayed on PommAI OLED!');
+      } else if (text.startsWith('OK:SAVED:')) {
+        const name = text.replace('OK:SAVED:', '').trim();
+        showToast(`✓ Photo saved as ${name} on PommAI!`);
       }
     });
 
@@ -829,6 +834,304 @@ function initClockModule(): void {
 }
 
 // ============================================================
+//  PHOTO & CAMERA STUDIO MODULE
+// ============================================================
+
+let currentPhotoBitmap: Uint8Array | null = null;
+let currentLoadedImage: HTMLImageElement | null = null;
+let cameraStream: MediaStream | null = null;
+let cameraIntervalId: any = null;
+let isWebcamRunning = false;
+
+function processImageToOled(
+  source: CanvasImageSource,
+  srcW: number,
+  srcH: number
+): Uint8Array {
+  const off = document.createElement('canvas');
+  off.width = 128;
+  off.height = 64;
+  const offCtx = off.getContext('2d')!;
+
+  // Scale & center crop into 128x64
+  const scale = Math.max(128 / srcW, 64 / srcH);
+  const nw = srcW * scale;
+  const nh = srcH * scale;
+  const nx = (128 - nw) / 2;
+  const ny = (64 - nh) / 2;
+  offCtx.drawImage(source, nx, ny, nw, nh);
+
+  const imgData = offCtx.getImageData(0, 0, 128, 64);
+  const data = imgData.data;
+
+  const brightness = parseFloat((document.getElementById('slider-brightness') as HTMLInputElement)?.value || '0');
+  const contrast = parseFloat((document.getElementById('slider-contrast') as HTMLInputElement)?.value || '1.2');
+  const invert = (document.getElementById('toggle-photo-invert') as HTMLInputElement)?.checked || false;
+  const useDither = (document.getElementById('toggle-photo-dither') as HTMLInputElement)?.checked ?? true;
+
+  // 2D Luminance buffer
+  const gray: number[][] = [];
+  for (let y = 0; y < 64; y++) {
+    gray[y] = [];
+    for (let x = 0; x < 128; x++) {
+      const idx = (y * 128 + x) * 4;
+      const r = data[idx];
+      const g = data[idx + 1];
+      const b = data[idx + 2];
+      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+      let val = ((lum - 128) * contrast) + 128 + brightness;
+      gray[y][x] = Math.max(0, Math.min(255, val));
+    }
+  }
+
+  // Dither Floyd-Steinberg or Threshold
+  const bitmap = new Uint8Array(1024);
+  const preview = offCtx.createImageData(128, 64);
+
+  for (let y = 0; y < 64; y++) {
+    for (let x = 0; x < 128; x++) {
+      const oldVal = gray[y][x];
+      let newVal = oldVal >= 128 ? 255 : 0;
+      if (invert) newVal = 255 - newVal;
+
+      if (useDither) {
+        const error = oldVal - (invert ? 255 - newVal : newVal);
+        if (x + 1 < 128) gray[y][x + 1] += error * (7 / 16);
+        if (x - 1 >= 0 && y + 1 < 64) gray[y + 1][x - 1] += error * (3 / 16);
+        if (y + 1 < 64) gray[y + 1][x] += error * (5 / 16);
+        if (x + 1 < 128 && y + 1 < 64) gray[y + 1][x + 1] += error * (1 / 16);
+      }
+
+      // In QGIF standard: 0 = lit (white on OLED), 1 = dark (black)
+      const bitIndex = y * 128 + x;
+      const byteIndex = Math.floor(bitIndex / 8);
+      const bitPos = 7 - (bitIndex % 8);
+      if (newVal === 0) {
+        bitmap[byteIndex] |= (1 << bitPos); // 1 = dark
+      }
+
+      const pIdx = (y * 128 + x) * 4;
+      preview.data[pIdx] = newVal;
+      preview.data[pIdx + 1] = newVal;
+      preview.data[pIdx + 2] = newVal;
+      preview.data[pIdx + 3] = 255;
+    }
+  }
+
+  // Draw 2x on preview canvas (256x128)
+  const canvas = document.getElementById('photo-preview-canvas') as HTMLCanvasElement;
+  if (canvas) {
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      offCtx.putImageData(preview, 0, 0);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(off, 0, 0, 256, 128);
+    }
+  }
+
+  return bitmap;
+}
+
+async function sendBitmapToOled(bitmap: Uint8Array): Promise<boolean> {
+  appendLog('[Photo] Starting OLED photo upload...');
+  await sendCommand('PHOTO_START');
+  await new Promise((r) => setTimeout(r, 40));
+
+  const hex = Array.from(bitmap).map((b) => b.toString(16).padStart(2, '0')).join('');
+  const chunkSize = 128; // 64 bytes per packet
+  for (let i = 0; i < hex.length; i += chunkSize) {
+    const chunk = hex.substring(i, i + chunkSize);
+    await sendCommand(`PHOTO_DATA:${chunk}`);
+    await new Promise((r) => setTimeout(r, 20));
+  }
+
+  const ok = await sendCommand('PHOTO_SHOW');
+  appendLog('[Photo] Photo rendered on OLED!');
+  return ok;
+}
+
+async function saveBitmapToRobot(bitmap: Uint8Array, filename: string): Promise<boolean> {
+  appendLog(`[Photo] Saving photo as "${filename}" to robot flash...`);
+  await sendCommand('PHOTO_START');
+  await new Promise((r) => setTimeout(r, 40));
+
+  const hex = Array.from(bitmap).map((b) => b.toString(16).padStart(2, '0')).join('');
+  const chunkSize = 128;
+  for (let i = 0; i < hex.length; i += chunkSize) {
+    const chunk = hex.substring(i, i + chunkSize);
+    await sendCommand(`PHOTO_DATA:${chunk}`);
+    await new Promise((r) => setTimeout(r, 20));
+  }
+
+  const ok = await sendCommand(`PHOTO_SAVE:${filename}`);
+  return ok;
+}
+
+function stopWebcamStream(): void {
+  if (cameraIntervalId) {
+    clearInterval(cameraIntervalId);
+    cameraIntervalId = null;
+  }
+  if (cameraStream) {
+    cameraStream.getTracks().forEach((t) => t.stop());
+    cameraStream = null;
+  }
+  isWebcamRunning = false;
+  const badge = document.getElementById('photo-status-badge');
+  if (badge) badge.textContent = 'Camera Stopped';
+}
+
+function initPhotoStudio(): void {
+  const filePicker = document.getElementById('photo-file-picker') as HTMLInputElement;
+  const chooseBtn = document.getElementById('btn-choose-photo');
+  const uploadText = document.getElementById('photo-upload-text');
+  const modeUpload = document.getElementById('btn-mode-upload');
+  const modeCamera = document.getElementById('btn-mode-camera');
+  const video = document.getElementById('webcam-stream') as HTMLVideoElement;
+  const badge = document.getElementById('photo-status-badge');
+
+  const sliderBright = document.getElementById('slider-brightness') as HTMLInputElement;
+  const valBright = document.getElementById('val-brightness');
+  const sliderContrast = document.getElementById('slider-contrast') as HTMLInputElement;
+  const valContrast = document.getElementById('val-contrast');
+  const toggleInvert = document.getElementById('toggle-photo-invert') as HTMLInputElement;
+  const toggleDither = document.getElementById('toggle-photo-dither') as HTMLInputElement;
+
+  const btnSend = document.getElementById('btn-send-to-oled');
+  const btnSave = document.getElementById('btn-save-to-robot');
+
+  // Initial placeholder rendering
+  const canvas = document.getElementById('photo-preview-canvas') as HTMLCanvasElement;
+  if (canvas) {
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, 256, 128);
+      ctx.fillStyle = '#64748b';
+      ctx.font = '13px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('Upload Photo or Start Cam', 128, 68);
+    }
+  }
+
+  function reprocess(): void {
+    if (isWebcamRunning && video && video.videoWidth > 0) {
+      currentPhotoBitmap = processImageToOled(video, video.videoWidth, video.videoHeight);
+    } else if (currentLoadedImage) {
+      currentPhotoBitmap = processImageToOled(currentLoadedImage, currentLoadedImage.width, currentLoadedImage.height);
+    }
+  }
+
+  // Sliders & toggles live update
+  sliderBright?.addEventListener('input', () => {
+    if (valBright) valBright.textContent = sliderBright.value;
+    reprocess();
+  });
+
+  sliderContrast?.addEventListener('input', () => {
+    if (valContrast) valContrast.textContent = `${sliderContrast.value}x`;
+    reprocess();
+  });
+
+  toggleInvert?.addEventListener('change', reprocess);
+  toggleDither?.addEventListener('change', reprocess);
+
+  // File picker
+  chooseBtn?.addEventListener('click', () => filePicker?.click());
+  filePicker?.addEventListener('change', (e) => {
+    const files = (e.target as HTMLInputElement).files;
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        stopWebcamStream();
+        modeUpload?.classList.add('active');
+        modeCamera?.classList.remove('active');
+        currentLoadedImage = img;
+        if (uploadText) uploadText.textContent = `Selected: ${file.name}`;
+        if (badge) badge.textContent = `${img.width}x${img.height} Loaded`;
+        currentPhotoBitmap = processImageToOled(img, img.width, img.height);
+        showToast(`✓ Image loaded: ${file.name}`);
+      };
+      img.src = ev.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // Switch to Upload Mode
+  modeUpload?.addEventListener('click', () => {
+    stopWebcamStream();
+    modeUpload.classList.add('active');
+    modeCamera?.classList.remove('active');
+    if (badge) badge.textContent = currentLoadedImage ? 'Photo Ready' : 'Ready for Photo';
+    if (currentLoadedImage) reprocess();
+  });
+
+  // Switch to Live Camera Mode
+  modeCamera?.addEventListener('click', async () => {
+    modeCamera.classList.add('active');
+    modeUpload?.classList.remove('active');
+    if (badge) badge.textContent = 'Starting Webcam...';
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 320 }, height: { ideal: 240 }, facingMode: 'user' },
+        audio: false,
+      });
+      cameraStream = stream;
+      if (video) {
+        video.srcObject = stream;
+        await video.play();
+      }
+      isWebcamRunning = true;
+      if (badge) badge.textContent = 'Live Webcam Active';
+      if (uploadText) uploadText.textContent = 'Webcam active. Click Display on OLED to send frame.';
+
+      cameraIntervalId = setInterval(() => {
+        if (video && video.videoWidth > 0) {
+          currentPhotoBitmap = processImageToOled(video, video.videoWidth, video.videoHeight);
+        }
+      }, 100);
+    } catch (err: any) {
+      alert(`Could not start camera: ${err.message}`);
+      if (badge) badge.textContent = 'Camera Error';
+      modeUpload?.classList.add('active');
+      modeCamera.classList.remove('active');
+    }
+  });
+
+  // Display on OLED button
+  btnSend?.addEventListener('click', async () => {
+    if (!currentPhotoBitmap) {
+      showToast('⚠️ Please upload a picture or turn on camera first!');
+      return;
+    }
+    showToast('⚡ Displaying photo on PommAI OLED...');
+    const ok = await sendBitmapToOled(currentPhotoBitmap);
+    if (ok) {
+      showToast('✓ Photo displayed on PommAI OLED!');
+    }
+  });
+
+  // Save to Robot Library button
+  btnSave?.addEventListener('click', async () => {
+    if (!currentPhotoBitmap) {
+      showToast('⚠️ Please upload a picture or turn on camera first!');
+      return;
+    }
+    const name = prompt('Enter a name for this photo on PommAI:', 'my_photo') || 'my_photo';
+    const cleanName = name.trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+    showToast(`⚡ Saving ${cleanName}.qgif to PommAI...`);
+    const ok = await saveBitmapToRobot(currentPhotoBitmap, cleanName);
+    if (ok) {
+      showToast(`✓ Photo saved as ${cleanName}.qgif!`);
+    }
+  });
+}
+
+// ============================================================
 //  CONNECTIVITY MODAL & LISTENERS
 // ============================================================
 
@@ -895,6 +1198,10 @@ function init(): void {
       } else if (target === 'library') {
         sendCommand('FACE');
       }
+
+      if (target !== 'photo') {
+        stopWebcamStream();
+      }
     });
   });
 
@@ -941,6 +1248,7 @@ function init(): void {
 
   // 6. Init modules
   initClockModule();
+  initPhotoStudio();
   initConnectivityModal();
 
   // 7. Initial render

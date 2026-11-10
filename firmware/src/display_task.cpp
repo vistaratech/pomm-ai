@@ -196,6 +196,18 @@ void displayShowClock(uint32_t durationMs) {
     displayRenderClockScreen();
 }
 
+static uint8_t _photoBuf[QGIF_FRAME_SIZE];
+static uint32_t _photoDurationMs = 0;
+
+void displayShowPhoto(const uint8_t *frameData, uint32_t durationMs) {
+    memcpy(_photoBuf, frameData, QGIF_FRAME_SIZE);
+    _photoDurationMs = durationMs;
+    enterState(PHOTO_VIEW);
+    uint8_t temp[QGIF_FRAME_SIZE];
+    memcpy(temp, _photoBuf, QGIF_FRAME_SIZE);
+    gifRenderFrame(&u8g2, temp, QGIF_FRAME_WIDTH, QGIF_FRAME_HEIGHT);
+}
+
 // ==========================================================================
 //  Settings menu: 16x16 icons for top-level (Timer, Game playground, Setting)
 //  Icon bitmaps: XBM-style, 16x16, 32 bytes each (2 bytes/row).
@@ -1032,6 +1044,14 @@ void displayTask(void *param) {
                         enterState(GIF_PLAYBACK);
                     }
                     break;
+
+                case PHOTO_VIEW:
+                    if (gesture.type == SINGLE_TAP || gesture.type == DOUBLE_TAP) {
+                        displayShowRobotFace();
+                    } else if (gesture.type == LONG_PRESS) {
+                        enterSettingsMenu();
+                    }
+                    break;
             }
         }
 
@@ -1384,6 +1404,12 @@ void displayTask(void *param) {
                 if (webCamHasNewFrame()) {
                     webCamConsumeFrame(_camRenderBuf);
                     gifRenderFrame(&u8g2, _camRenderBuf, QGIF_FRAME_WIDTH, QGIF_FRAME_HEIGHT);
+                }
+                break;
+
+            case PHOTO_VIEW:
+                if (_photoDurationMs > 0 && elapsed >= _photoDurationMs) {
+                    displayShowRobotFace();
                 }
                 break;
 

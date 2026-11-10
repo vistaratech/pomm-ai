@@ -14,6 +14,7 @@
 #include "app_state.h"
 #include "display_task.h"
 #include "time_manager.h"
+#include <LittleFS.h>
 
 // Standard Nordic UART Service (NUS) UUIDs
 #define SERVICE_UUID           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
@@ -24,6 +25,10 @@ static BLEServer         *pServer         = nullptr;
 static BLECharacteristic *pTxCharacteristic = nullptr;
 static bool               deviceConnected = false;
 static bool               oldDeviceConnected = false;
+
+// Buffer for receiving photo / camera frames (128x64 = 1024 bytes)
+static uint8_t  _incomingPhotoBuf[1024];
+static uint16_t _incomingPhotoOffset = 0;
 
 // ESP32-C3 Super Mini onboard Blue LED pin (GPIO 8, Active LOW: LOW = ON, HIGH = OFF)
 #define ONBOARD_BLUE_LED_PIN 8
@@ -47,6 +52,43 @@ static void handleCommand(const String &cmd) {
         if (filename.length() > 0) {
             displayPlayAnimation(filename);
             bleNotify("OK:PLAY:" + filename);
+        }
+    } else if (trimmed.startsWith("PHOTO_START")) {
+        _incomingPhotoOffset = 0;
+        memset(_incomingPhotoBuf, 0, sizeof(_incomingPhotoBuf));
+        bleNotify("OK:PHOTO_READY");
+    } else if (trimmed.startsWith("PHOTO_DATA:")) {
+        String hex = trimmed.substring(11);
+        hex.trim();
+        for (unsigned int i = 0; i + 1 < hex.length() && _incomingPhotoOffset < 1024; i += 2) {
+            char bChars[3] = { hex[i], hex[i + 1], '\0' };
+            _incomingPhotoBuf[_incomingPhotoOffset++] = (uint8_t)strtol(bChars, NULL, 16);
+        }
+    } else if (trimmed.equalsIgnoreCase("PHOTO_SHOW")) {
+        displayShowPhoto(_incomingPhotoBuf, 0); // 0 = stay until dismissed
+        bleNotify("OK:PHOTO_SHOWN");
+    } else if (trimmed.startsWith("PHOTO_SAVE:")) {
+        String filename = trimmed.substring(11);
+        filename.trim();
+        if (filename.length() == 0) filename = "photo";
+        if (!filename.endsWith(".qgif")) filename += ".qgif";
+        File f = LittleFS.open("/" + filename, "w");
+        if (f) {
+            // Write standard QGIF header (1 static frame, 128x64, 1000ms delay)
+            uint8_t hdr[7] = {
+                1,          // frame count = 1
+                128, 0,     // width = 128 (uint16 LE)
+                64, 0,      // height = 64 (uint16 LE)
+                0xE8, 0x03  // delay = 1000ms (uint16 LE)
+            };
+            f.write(hdr, 7);
+            f.write(_incomingPhotoBuf, 1024);
+            f.close();
+            Serial.printf("[PHOTO] Saved %s to LittleFS (%d bytes)\n", filename.c_str(), 1031);
+            displayPlayAnimation(filename);
+            bleNotify("OK:SAVED:" + filename);
+        } else {
+            bleNotify("ERR:SAVE_FAILED");
         }
     } else if (trimmed.startsWith("TIME:")) {
         String epochStr = trimmed.substring(5);

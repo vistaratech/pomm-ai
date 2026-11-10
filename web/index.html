@@ -23,6 +23,7 @@
       <div class="qbit-nav-segmented">
         <button class="nav-seg-tab active" data-tab="library" id="tab-btn-library">LIBRARY</button>
         <button class="nav-seg-tab" data-tab="clock" id="tab-btn-clock">TIME &amp; DATE</button>
+        <button class="nav-seg-tab" data-tab="photo" id="tab-btn-photo">PHOTO &amp; CAM</button>
         <button class="conn-status-pill" id="btn-open-conn" title="Device Connection Status &amp; Settings">
           <span class="status-indicator-dot" id="status-dot"></span>
         </button>
@@ -148,6 +149,102 @@
               <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
             </select>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== VIEW 3: PHOTO & CAMERA TO OLED ========== -->
+    <section class="qbit-tab-view" id="view-photo">
+      <div class="photo-panel-box">
+        <div class="photo-panel-header">
+          <h2 class="photo-panel-title">Photo &amp; Camera Studio</h2>
+          <span class="photo-panel-sub">Convert selfies, pictures or live webcam into crisp 128x64 OLED display.</span>
+        </div>
+
+        <!-- Mode Segmented Switcher -->
+        <div class="photo-mode-segmented">
+          <button class="btn-mode-tab active" id="btn-mode-upload">📁 Upload Picture</button>
+          <button class="btn-mode-tab" id="btn-mode-camera">📷 Live Camera</button>
+        </div>
+
+        <!-- Hidden inputs & video -->
+        <input type="file" id="photo-file-picker" accept="image/*" hidden />
+        <video id="webcam-stream" autoplay playsinline muted hidden></video>
+
+        <!-- Realistic OLED Canvas Preview Box -->
+        <div class="photo-oled-bezel">
+          <canvas id="photo-preview-canvas" width="256" height="128"></canvas>
+          <div class="photo-bezel-badge" id="photo-status-badge">Ready for Photo</div>
+        </div>
+
+        <!-- Upload Drop / Select Box -->
+        <div class="photo-drop-banner" id="btn-choose-photo">
+          <svg class="photo-upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+          <span id="photo-upload-text">Click to choose a photo (JPEG, PNG, WebP)</span>
+        </div>
+
+        <!-- Image Tuning Controls -->
+        <div class="settings-card-group">
+          <div class="slider-control-row">
+            <div class="slider-meta">
+              <span class="slider-title">Brightness</span>
+              <span class="slider-val" id="val-brightness">0</span>
+            </div>
+            <input type="range" class="qbit-range" id="slider-brightness" min="-80" max="80" value="0" />
+          </div>
+
+          <div class="slider-control-row">
+            <div class="slider-meta">
+              <span class="slider-title">Contrast</span>
+              <span class="slider-val" id="val-contrast">1.2x</span>
+            </div>
+            <input type="range" class="qbit-range" id="slider-contrast" min="0.5" max="2.5" step="0.1" value="1.2" />
+          </div>
+
+          <div class="control-toggle-row">
+            <div>
+              <div class="control-row-title">Invert Pixels</div>
+              <div class="control-row-hint">White on Black vs Black on White</div>
+            </div>
+            <label class="qbit-toggle">
+              <input type="checkbox" id="toggle-photo-invert" />
+              <span class="qbit-slider"></span>
+            </label>
+          </div>
+
+          <div class="control-toggle-row">
+            <div>
+              <div class="control-row-title">Floyd-Steinberg Dithering</div>
+              <div class="control-row-hint">Smooth grayscale shading dots vs hard contrast</div>
+            </div>
+            <label class="qbit-toggle">
+              <input type="checkbox" id="toggle-photo-dither" checked />
+              <span class="qbit-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="photo-actions-row">
+          <button class="btn-photo-action btn-send-photo" id="btn-send-to-oled">
+            <svg class="btn-act-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+            </svg>
+            <span>DISPLAY ON OLED</span>
+          </button>
+
+          <button class="btn-photo-action btn-save-photo" id="btn-save-to-robot">
+            <svg class="btn-act-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+              <polyline points="17 21 17 13 7 13 7 21"/>
+              <polyline points="7 3 7 8 15 8"/>
+            </svg>
+            <span>SAVE TO ROBOT</span>
+          </button>
         </div>
       </div>
     </section>

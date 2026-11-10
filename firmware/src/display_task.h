@@ -19,4 +19,7 @@ void displayShowRobotFace();
 // Show real-time clock screen on OLED (with live ticking for durationMs, 0 = indefinite)
 void displayShowClock(uint32_t durationMs = 20000);
 
+// Show static photo or camera frame on OLED (durationMs = 0 to stay until tap or new cmd)
+void displayShowPhoto(const uint8_t *frameData, uint32_t durationMs = 0);
+
 #endif // DISPLAY_TASK_H
