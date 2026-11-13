@@ -47,6 +47,10 @@ uint16_t getPlaybackSpeed();
 void     setFaceDurationSec(uint16_t sec);
 uint16_t getFaceDurationSec();
 
+// --- Clock mode (true = always show clock screen, false = robot face/animations) ---
+bool     getClockMode();
+void     setClockMode(bool val);
+
 // --- MQTT configuration ---
 // Limits aligned with firmware buffer and common practice (host = setServer buffer).
 #define MQTT_HOST_MAX_LEN   127

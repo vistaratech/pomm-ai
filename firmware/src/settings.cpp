@@ -52,6 +52,7 @@ static String  _tzIANA;
 
 // Display orientation / GIF options
 static bool _flipMode        = true;
+static bool _clockMode       = false; // true = persistent clock display mode
 
 // T-Rex Runner high score (stored under key "trexHi")
 static uint32_t _trexHighScore   = 0;
@@ -175,6 +176,7 @@ void loadSettings() {
     // Display / GIF options
 
     _flipMode        = _prefs.getBool("flipMode",  true);
+    _clockMode       = _prefs.getBool("clkMode",   false);
     _negativeGif     = _prefs.getBool("negGif",    false);
     _timeFormat24h   = _prefs.getBool("time24h",   true);
     _trexHighScore   = _prefs.getUInt("trexHi",    0);
@@ -234,6 +236,7 @@ void saveSettings() {
     _prefs.putUChar("pinSCL",    _pinSCL);
     _prefs.putString("tzName",   _tzIANA);
     _prefs.putBool("flipMode",   _flipMode);
+    _prefs.putBool("clkMode",    _clockMode);
     _prefs.putBool("negGif",     _negativeGif);
     _prefs.putBool("time24h",    _timeFormat24h);
     _prefs.putUInt("trexHi",     _trexHighScore);
@@ -327,6 +330,19 @@ void setFaceDurationSec(uint16_t sec) {
     }
 }
 uint16_t getFaceDurationSec() { return _faceDurationSec; }
+
+// ==========================================================================
+//  Clock Mode (persistent always-on clock)
+// ==========================================================================
+
+bool getClockMode() { return _clockMode; }
+void setClockMode(bool val) {
+    _clockMode = val;
+    if (_prefsReady && xSemaphoreTake(_prefsMutex, portMAX_DELAY) == pdTRUE) {
+        _prefs.putBool("clkMode", val);
+        xSemaphoreGive(_prefsMutex);
+    }
+}
 
 // ==========================================================================
 //  MQTT configuration

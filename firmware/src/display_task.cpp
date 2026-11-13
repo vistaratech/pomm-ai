@@ -131,6 +131,7 @@ static void enterState(DisplayState newState) {
 }
 
 void displayShowRobotFace() {
+    setClockMode(false);
     enterState(GIF_PLAYBACK);
     if (gifPlayerHasFiles()) {
         gifPlayerScanFiles();
@@ -1118,13 +1119,10 @@ void displayTask(void *param) {
 
             case CONNECTED_INFO:
                 if (elapsed >= CONNECTED_INFO_MS) {
-                    enterState(GIF_PLAYBACK);
-                    if (gifPlayerHasFiles()) {
-                        gifPlayerScanFiles();
-                        gifPlayerSetFile(gifPlayerNextSequential());
+                    if (getClockMode()) {
+                        displayShowClock(0);
                     } else {
-                        // Without .qgif files, gifPlayerTick would not draw (_playing false, idle off).
-                        gifPlayerStartIdleIfNoUserGifs();
+                        displayShowRobotFace();
                     }
                 }
                 break;

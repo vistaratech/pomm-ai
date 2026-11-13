@@ -444,31 +444,52 @@ function setMqttPill(el, enabled, connected) {
   });
 })();
 
-// Clock trigger button on device card & uptime click
+// Screen mode buttons (Robot Faces vs Always Clock)
 (function () {
-  var btnShowClock = document.getElementById('btnShowClock');
+  var btnModeFaces = document.getElementById('btnModeFaces');
+  var btnModeClock = document.getElementById('btnModeClock');
   var devCombinedUptime = document.getElementById('devCombinedUptime');
-  function triggerClock() {
-    if (btnShowClock) {
-      btnShowClock.disabled = true;
-      btnShowClock.textContent = 'Showing on OLED...';
+
+  function updateModeButtons(isClock) {
+    if (btnModeClock) {
+      btnModeClock.style.background = isClock ? 'var(--red)' : '';
+      btnModeClock.style.color = isClock ? '#fff' : '';
+      btnModeClock.style.borderColor = isClock ? 'var(--red)' : '';
     }
-    fetch('/api/clock', { method: 'POST' }).then(function () {
-      if (btnShowClock) btnShowClock.textContent = 'Active on OLED!';
-    }).catch(function () {}).finally(function () {
-      setTimeout(function () {
-        if (btnShowClock) {
-          btnShowClock.disabled = false;
-          btnShowClock.textContent = 'Show Clock';
-        }
-      }, 3000);
+    if (btnModeFaces) {
+      btnModeFaces.style.background = !isClock ? 'var(--red)' : '';
+      btnModeFaces.style.color = !isClock ? '#fff' : '';
+      btnModeFaces.style.borderColor = !isClock ? 'var(--red)' : '';
+    }
+  }
+
+  fetch('/api/settings').then(function (r) { return r.json(); }).then(function (s) {
+    if (s.clock_mode !== undefined) {
+      updateModeButtons(s.clock_mode);
+    }
+  }).catch(function () {});
+
+  if (btnModeClock) {
+    btnModeClock.addEventListener('click', function () {
+      updateModeButtons(true);
+      fetch('/api/clock?mode=clock&duration=0', { method: 'POST' });
     });
   }
-  if (btnShowClock) btnShowClock.addEventListener('click', triggerClock);
+
+  if (btnModeFaces) {
+    btnModeFaces.addEventListener('click', function () {
+      updateModeButtons(false);
+      fetch('/api/clock?mode=faces', { method: 'POST' });
+    });
+  }
+
   if (devCombinedUptime) {
     devCombinedUptime.style.cursor = 'pointer';
-    devCombinedUptime.title += ' (Click to show clock on OLED)';
-    devCombinedUptime.addEventListener('click', triggerClock);
+    devCombinedUptime.title += ' (Click to toggle Always Clock)';
+    devCombinedUptime.addEventListener('click', function () {
+      updateModeButtons(true);
+      fetch('/api/clock?mode=clock&duration=0', { method: 'POST' });
+    });
   }
 })();
 

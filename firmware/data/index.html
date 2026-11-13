@@ -88,9 +88,15 @@
       <label class="setting-label">Uptime</label>
       <span class="setting-val-wide setting-uptime-combined" id="devCombinedUptime" title="Boot time since power-on; Server time since last cloud connection">--</span>
     </div>
+    <div class="setting">
+      <label class="setting-label">Screen Mode</label>
+      <div class="device-actions" style="margin:0;gap:8px">
+        <button class="pill-btn btn-mode-toggle" id="btnModeFaces" type="button" title="Cycle through robot animations">🤖 Robot Faces</button>
+        <button class="pill-btn btn-mode-toggle" id="btnModeClock" type="button" title="Always show real-time clock continuously">⏰ Always Clock</button>
+      </div>
+    </div>
     <button class="btn btn-save" id="btnDevSave">Save Name</button>
     <div class="device-actions">
-      <button class="btn btn-secondary" id="btnShowClock" type="button" title="Display live clock on OLED">Show Clock</button>
       <button class="btn btn-secondary" id="btnWifiReset">WiFi Reset</button>
       <button class="btn btn-secondary" id="btnReboot">Reboot</button>
     </div>

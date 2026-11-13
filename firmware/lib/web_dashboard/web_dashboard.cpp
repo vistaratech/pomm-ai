@@ -323,6 +323,7 @@ static void handleGetSettings(AsyncWebServerRequest *request) {
     doc["brightness"]    = getDisplayBrightness();
     doc["volume"]        = getBuzzerVolume();
     doc["face_duration"] = getFaceDurationSec();
+    doc["clock_mode"]    = getClockMode();
     String json;
     serializeJson(doc, json);
     request->send(200, "application/json", json);
@@ -362,12 +363,23 @@ static void handlePostSettings(AsyncWebServerRequest *request) {
 // ==========================================================================
 
 static void handleClock(AsyncWebServerRequest *request) {
-    uint32_t duration = 30000;
+    if (request->hasParam("mode")) {
+        String m = request->getParam("mode")->value();
+        if (m == "faces" || m == "robot" || m == "face") {
+            setClockMode(false);
+            displayShowRobotFace();
+            request->send(200, "application/json", "{\"status\":\"ok\",\"mode\":\"faces\"}");
+            return;
+        }
+    }
+    // Default duration = 0: persistent always-on clock (never times out back to face)
+    uint32_t duration = 0;
     if (request->hasParam("duration")) {
         duration = (uint32_t)request->getParam("duration")->value().toInt();
     }
+    setClockMode(true);
     displayShowClock(duration);
-    request->send(200, "application/json", "{\"status\":\"ok\",\"screen\":\"clock\"}");
+    request->send(200, "application/json", "{\"status\":\"ok\",\"mode\":\"clock\",\"screen\":\"clock\"}");
 }
 
 static void handleGetTimer(AsyncWebServerRequest *request) {
