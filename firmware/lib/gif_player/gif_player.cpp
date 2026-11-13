@@ -33,6 +33,13 @@ static String        _shuffleBag[QGIF_MAX_FRAMES];
 static uint8_t       _shuffleTotal  = 0;   // number of files in the bag
 static uint8_t       _shufflePos    = 0;   // next index to hand out
 
+// --- Sequential file list & duration ---
+static String        _fileList[QGIF_MAX_FRAMES];
+static uint8_t       _fileTotal     = 0;
+static uint8_t       _fileIndex     = 0;
+static uint16_t      _faceDurationSec = 30; // default 30s per face
+static unsigned long _gifStartMs    = 0;
+
 // --- Auto-advance ---
 static uint8_t       _loopCount     = 0;
 static uint8_t       _loopsPerGif   = 0;   // 0 = disabled
@@ -97,6 +104,7 @@ static bool _openFile(const String &filename) {
   _lastFrameMs  = 0;  // render first frame immediately
   _loopCount    = 0;
   _currentFile  = filename;
+  _gifStartMs   = millis();
   _playing      = true;
   return true;
 }
@@ -112,6 +120,50 @@ static bool _readFrame(uint8_t idx) {
 // Public API
 // ---------------------------------------------------------------------------
 
+void gifPlayerScanFiles() {
+  File root = LittleFS.open("/");
+  if (!root || !root.isDirectory()) { _fileTotal = 0; return; }
+
+  _fileTotal = 0;
+  File f = root.openNextFile();
+  while (f && _fileTotal < QGIF_MAX_FRAMES) {
+    String name = String(f.name());
+    f.close();
+    if (name.endsWith(".qgif")) {
+      if (name.startsWith("/")) name = name.substring(1);
+      _fileList[_fileTotal++] = name;
+    }
+    f = root.openNextFile();
+  }
+  root.close();
+
+  // Alphabetical sort
+  for (uint8_t i = 0; i < _fileTotal; i++) {
+    for (uint8_t j = i + 1; j < _fileTotal; j++) {
+      if (_fileList[i] > _fileList[j]) {
+        String tmp = _fileList[i];
+        _fileList[i] = _fileList[j];
+        _fileList[j] = tmp;
+      }
+    }
+  }
+}
+
+String gifPlayerNextSequential() {
+  if (_fileTotal == 0) gifPlayerScanFiles();
+  if (_fileTotal == 0) return "";
+  _fileIndex = (_fileIndex + 1) % _fileTotal;
+  return _fileList[_fileIndex];
+}
+
+void gifPlayerSetFaceDuration(uint16_t seconds) {
+  _faceDurationSec = seconds;
+}
+
+uint16_t gifPlayerGetFaceDuration() {
+  return _faceDurationSec;
+}
+
 bool gifPlayerInit(U8G2 *display) {
   _display = display;
   if (!LittleFS.begin(true /* formatOnFail */)) {
@@ -119,6 +171,7 @@ bool gifPlayerInit(U8G2 *display) {
     return false;
   }
   Serial.println("gifPlayer: LittleFS mounted");
+  gifPlayerScanFiles();
   return true;
 }
 
@@ -370,9 +423,19 @@ void gifPlayerTick() {
     _currentFrame = 0;
     _loopCount++;
 
-    // Auto-advance to next shuffled GIF after N full loops
-    if (_loopsPerGif > 0 && _loopCount >= _loopsPerGif) {
+    // Auto-advance: if _faceDurationSec > 0, check elapsed time; otherwise fallback to loop count
+    bool shouldAdvance = false;
+    if (_faceDurationSec > 0) {
+      if (millis() - _gifStartMs >= (unsigned long)_faceDurationSec * 1000UL) {
+        shouldAdvance = true;
+      }
+    } else if (_loopsPerGif > 0 && _loopCount >= _loopsPerGif) {
+      shouldAdvance = true;
+    }
+
+    if (shouldAdvance) {
       _loopCount = 0;
+      _gifStartMs = millis();
 
       // If idle animation is configured, play it before the next GIF
       if (_idleAnim) {
@@ -382,8 +445,8 @@ void gifPlayerTick() {
         _idleLoopTarget  = 1 + (esp_random() % 5);  // 1..5 random loops
         _idleLastFrameMs = 0;  // render first frame immediately
       } else {
-        // No idle animation, advance directly
-        String next = gifPlayerNextShuffle();
+        // Advance sequentially through all 52 files one by one
+        String next = gifPlayerNextSequential();
         if (next.length() > 0) {
           _requestedFile = next;
           _fileChanged   = true;

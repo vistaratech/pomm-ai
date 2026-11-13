@@ -3,6 +3,8 @@
 #include "../../src/settings.h"
 #include "../../src/app_state.h"
 #include "../../src/network_task.h"
+#include "../../src/display_task.h"
+#include "../../src/timer_ui.h"
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
@@ -257,6 +259,8 @@ static void handleUploadData(AsyncWebServerRequest *request,
             return;
         }
 
+        gifPlayerScanFiles();
+
         if (gifPlayerGetCurrentFile().length() == 0)
             gifPlayerSetFile(basename);
     }
@@ -299,6 +303,7 @@ static void handleDelete(AsyncWebServerRequest *request) {
     }
 
     LittleFS.remove(path);
+    gifPlayerScanFiles();
 
     if (gifPlayerGetCurrentFile() == name) {
         String next = gifPlayerGetFirstFile();
@@ -313,10 +318,11 @@ static void handleDelete(AsyncWebServerRequest *request) {
 // ==========================================================================
 
 static void handleGetSettings(AsyncWebServerRequest *request) {
-    StaticJsonDocument<128> doc;
-    doc["speed"]      = getPlaybackSpeed();
-    doc["brightness"] = getDisplayBrightness();
-    doc["volume"]     = getBuzzerVolume();
+    StaticJsonDocument<256> doc;
+    doc["speed"]         = getPlaybackSpeed();
+    doc["brightness"]    = getDisplayBrightness();
+    doc["volume"]        = getBuzzerVolume();
+    doc["face_duration"] = getFaceDurationSec();
     String json;
     serializeJson(doc, json);
     request->send(200, "application/json", json);
@@ -335,6 +341,13 @@ static void handlePostSettings(AsyncWebServerRequest *request) {
         int v = request->getParam("volume")->value().toInt();
         if (v >= 0 && v <= 100) setBuzzerVolume((uint8_t)v);
     }
+    if (request->hasParam("face_duration")) {
+        int v = request->getParam("face_duration")->value().toInt();
+        if (v >= 0 && v <= 3600) {
+            setFaceDurationSec((uint16_t)v);
+            gifPlayerSetFaceDuration((uint16_t)v);
+        }
+    }
     // If save=1 is passed, persist to NVS
     if (request->hasParam("save")) {
         saveSettings();
@@ -342,6 +355,53 @@ static void handlePostSettings(AsyncWebServerRequest *request) {
 
     // Echo back the current state
     handleGetSettings(request);
+}
+
+// ==========================================================================
+//  Handlers -- Clock & Timer API
+// ==========================================================================
+
+static void handleClock(AsyncWebServerRequest *request) {
+    uint32_t duration = 30000;
+    if (request->hasParam("duration")) {
+        duration = (uint32_t)request->getParam("duration")->value().toInt();
+    }
+    displayShowClock(duration);
+    request->send(200, "application/json", "{\"status\":\"ok\",\"screen\":\"clock\"}");
+}
+
+static void handleGetTimer(AsyncWebServerRequest *request) {
+    StaticJsonDocument<128> doc;
+    doc["running"] = (getDisplayState() == TIMER_RUNNING);
+    doc["remain"]  = timerUiGetRemainSec();
+    doc["done"]    = timerUiGetDone();
+    doc["started"] = timerUiGetStarted();
+    String json;
+    serializeJson(doc, json);
+    request->send(200, "application/json", json);
+}
+
+static void handlePostTimer(AsyncWebServerRequest *request) {
+    if (request->hasParam("action")) {
+        String act = request->getParam("action")->value();
+        if (act == "stop" || act == "cancel") {
+            displayCancelTimer();
+            request->send(200, "application/json", "{\"status\":\"ok\",\"running\":false}");
+            return;
+        }
+    }
+    uint32_t sec = 0;
+    if (request->hasParam("seconds")) {
+        sec = (uint32_t)request->getParam("seconds")->value().toInt();
+    } else if (request->hasParam("minutes")) {
+        sec = (uint32_t)request->getParam("minutes")->value().toInt() * 60;
+    }
+    if (sec > 0) {
+        displayStartTimer(sec);
+        request->send(200, "application/json", "{\"status\":\"ok\",\"running\":true,\"remain\":sec}");
+    } else {
+        request->send(400, "application/json", "{\"error\":\"Missing seconds or minutes\"}");
+    }
 }
 
 // ==========================================================================
@@ -860,6 +920,10 @@ void webDashboardInit(AsyncWebServer &server) {
     server.on("/api/pins",          HTTP_POST, handlePostPins);
     server.on("/api/timezone",      HTTP_GET,  handleGetTimezone);
     server.on("/api/timezone",      HTTP_POST, handlePostTimezone);
+    server.on("/api/clock",         HTTP_GET,  handleClock);
+    server.on("/api/clock",         HTTP_POST, handleClock);
+    server.on("/api/timer",         HTTP_GET,  handleGetTimer);
+    server.on("/api/timer",         HTTP_POST, handlePostTimer);
     // Register more specific weather route first to avoid accidental prefix captures.
     server.on("/api/weather/search",HTTP_GET,  handleWeatherSearch);
     server.on("/api/weather",       HTTP_GET,  handleGetWeather);

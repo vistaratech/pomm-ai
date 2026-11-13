@@ -28,6 +28,7 @@ static uint8_t _pinSCL    = 21;
 
 // Display
 static uint8_t _brightness = 0x80;
+static uint16_t _faceDurationSec = 30; // default 30s per face
 
 // Buzzer
 static uint8_t _buzzerVolume = 100;
@@ -144,6 +145,7 @@ void loadSettings() {
     _brightness   = _prefs.getUChar("bright", 0x80);
     _buzzerVolume = _prefs.getUChar("volume", 100);
     _savedVolume  = _buzzerVolume > 0 ? _buzzerVolume : 100;
+    _faceDurationSec = _prefs.getUShort("faceDur", 30);
     uint16_t speed = _prefs.getUShort("speed", 5);
 
     // Device name
@@ -197,8 +199,9 @@ void loadSettings() {
 
     xSemaphoreGive(_prefsMutex);
 
-    // Apply speed
+    // Apply speed and face duration
     gifPlayerSetSpeed(speed);
+    gifPlayerSetFaceDuration(_faceDurationSec);
 
     Serial.printf("Settings loaded: bright=%u vol=%u speed=%u\n",
                   _brightness, _buzzerVolume, speed);
@@ -215,6 +218,7 @@ void saveSettings() {
     if (xSemaphoreTake(_prefsMutex, portMAX_DELAY) != pdTRUE) return;
 
     _prefs.putUShort("speed",    gifPlayerGetSpeed());
+    _prefs.putUShort("faceDur",  _faceDurationSec);
     _prefs.putUChar("bright",    _brightness);
     _prefs.putUChar("volume",    _buzzerVolume);
     _prefs.putString("devname",  _deviceName);
@@ -309,6 +313,20 @@ void setNegativeGif(bool val) { _negativeGif = val; }
 
 void setPlaybackSpeed(uint16_t val) { gifPlayerSetSpeed(val); }
 uint16_t getPlaybackSpeed() { return gifPlayerGetSpeed(); }
+
+// ==========================================================================
+//  Face cycle duration
+// ==========================================================================
+
+void setFaceDurationSec(uint16_t sec) {
+    _faceDurationSec = sec;
+    gifPlayerSetFaceDuration(sec);
+    if (_prefsReady && xSemaphoreTake(_prefsMutex, portMAX_DELAY) == pdTRUE) {
+        _prefs.putUShort("faceDur", sec);
+        xSemaphoreGive(_prefsMutex);
+    }
+}
+uint16_t getFaceDurationSec() { return _faceDurationSec; }
 
 // ==========================================================================
 //  MQTT configuration

@@ -369,12 +369,14 @@ function setMqttPill(el, enabled, connected) {
 
 // Settings controls -- fetch current values and send changes on input
 (function () {
-  var rSpeed  = document.getElementById('rSpeed');
-  var rBright = document.getElementById('rBright');
-  var btnMute = document.getElementById('btnMute');
-  var vSpeed  = document.getElementById('vSpeed');
-  var vBright = document.getElementById('vBright');
-  var _muted  = false;
+  var rSpeed   = document.getElementById('rSpeed');
+  var rBright  = document.getElementById('rBright');
+  var rFaceDur = document.getElementById('rFaceDur');
+  var btnMute  = document.getElementById('btnMute');
+  var vSpeed   = document.getElementById('vSpeed');
+  var vBright  = document.getElementById('vBright');
+  var vFaceDur = document.getElementById('vFaceDur');
+  var _muted   = false;
 
   function updateMuteBtn() {
     btnMute.textContent = _muted ? 'OFF' : 'ON';
@@ -385,6 +387,10 @@ function setMqttPill(el, enabled, connected) {
   fetch('/api/settings').then(function (r) { return r.json(); }).then(function (s) {
     rSpeed.value  = s.speed;       vSpeed.textContent  = s.speed;
     rBright.value = s.brightness;  vBright.textContent = s.brightness;
+    if (s.face_duration !== undefined && rFaceDur) {
+      rFaceDur.value = s.face_duration;
+      if (vFaceDur) vFaceDur.textContent = s.face_duration;
+    }
     _muted = s.volume === 0;
     updateMuteBtn();
   }).catch(function () {});
@@ -406,6 +412,12 @@ function setMqttPill(el, enabled, connected) {
     vBright.textContent = rBright.value;
     send('brightness', rBright.value);
   });
+  if (rFaceDur) {
+    rFaceDur.addEventListener('input', function () {
+      if (vFaceDur) vFaceDur.textContent = rFaceDur.value;
+      send('face_duration', rFaceDur.value);
+    });
+  }
   btnMute.addEventListener('click', function () {
     _muted = !_muted;
     updateMuteBtn();
@@ -430,6 +442,124 @@ function setMqttPill(el, enabled, connected) {
         }, 2000);
       });
   });
+})();
+
+// Clock trigger button on device card & uptime click
+(function () {
+  var btnShowClock = document.getElementById('btnShowClock');
+  var devCombinedUptime = document.getElementById('devCombinedUptime');
+  function triggerClock() {
+    if (btnShowClock) {
+      btnShowClock.disabled = true;
+      btnShowClock.textContent = 'Showing on OLED...';
+    }
+    fetch('/api/clock', { method: 'POST' }).then(function () {
+      if (btnShowClock) btnShowClock.textContent = 'Active on OLED!';
+    }).catch(function () {}).finally(function () {
+      setTimeout(function () {
+        if (btnShowClock) {
+          btnShowClock.disabled = false;
+          btnShowClock.textContent = 'Show Clock';
+        }
+      }, 3000);
+    });
+  }
+  if (btnShowClock) btnShowClock.addEventListener('click', triggerClock);
+  if (devCombinedUptime) {
+    devCombinedUptime.style.cursor = 'pointer';
+    devCombinedUptime.title += ' (Click to show clock on OLED)';
+    devCombinedUptime.addEventListener('click', triggerClock);
+  }
+})();
+
+// Timer controls -- set, start, cancel and live countdown
+(function () {
+  var timerStatusPill = document.getElementById('timerStatusPill');
+  var timerDisplayRow = document.getElementById('timerDisplayRow');
+  var timerRemainVal  = document.getElementById('timerRemainVal');
+  var timerMinInput   = document.getElementById('timerMinInput');
+  var timerSecInput   = document.getElementById('timerSecInput');
+  var btnTimerStart   = document.getElementById('btnTimerStart');
+  var btnTimerStop    = document.getElementById('btnTimerStop');
+  var timerMsg        = document.getElementById('timerMsg');
+  var presets         = document.querySelectorAll('.btn-timer-preset');
+
+  for (var i = 0; i < presets.length; i++) {
+    presets[i].addEventListener('click', function () {
+      timerMinInput.value = this.getAttribute('data-min');
+      timerSecInput.value = '0';
+    });
+  }
+
+  function formatTime(sec) {
+    var m = Math.floor(sec / 60);
+    var s = sec % 60;
+    return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  function pollTimer() {
+    if (!timerStatusPill) return;
+    fetch('/api/timer').then(function (r) { return r.json(); }).then(function (d) {
+      if (d.running) {
+        timerStatusPill.textContent = 'Running';
+        timerStatusPill.className = 'pill pill-status active';
+        if (timerDisplayRow) timerDisplayRow.style.display = 'flex';
+        if (timerRemainVal) timerRemainVal.textContent = formatTime(d.remain);
+        if (btnTimerStop) btnTimerStop.disabled = false;
+      } else {
+        timerStatusPill.textContent = d.done ? 'Done!' : 'Idle';
+        timerStatusPill.className = 'pill pill-status';
+        if (d.done) {
+          if (timerDisplayRow) timerDisplayRow.style.display = 'flex';
+          if (timerRemainVal) timerRemainVal.textContent = '00:00 - Done!';
+        } else {
+          if (timerDisplayRow) timerDisplayRow.style.display = 'none';
+        }
+        if (btnTimerStop) btnTimerStop.disabled = true;
+      }
+    }).catch(function () {});
+  }
+
+  if (btnTimerStart) {
+    btnTimerStart.addEventListener('click', function () {
+      var min = parseInt(timerMinInput.value, 10) || 0;
+      var sec = parseInt(timerSecInput.value, 10) || 0;
+      var totalSec = min * 60 + sec;
+      if (totalSec <= 0) {
+        timerMsg.textContent = 'Please enter at least 1 second.';
+        timerMsg.className = 'msg error';
+        timerMsg.style.display = 'block';
+        return;
+      }
+      btnTimerStart.disabled = true;
+      fetch('/api/timer?seconds=' + totalSec, { method: 'POST' }).then(function (r) {
+        return r.json();
+      }).then(function () {
+        timerMsg.textContent = 'Timer started on OLED!';
+        timerMsg.className = 'msg ok';
+        timerMsg.style.display = 'block';
+        pollTimer();
+      }).catch(function () {
+        timerMsg.textContent = 'Failed to start timer';
+        timerMsg.className = 'msg error';
+        timerMsg.style.display = 'block';
+      }).finally(function () {
+        btnTimerStart.disabled = false;
+        setTimeout(function () { timerMsg.style.display = 'none'; }, 2500);
+      });
+    });
+  }
+
+  if (btnTimerStop) {
+    btnTimerStop.addEventListener('click', function () {
+      fetch('/api/timer?action=stop', { method: 'POST' }).then(function () {
+        pollTimer();
+      });
+    });
+  }
+
+  setInterval(pollTimer, 2000);
+  pollTimer();
 })();
 
 // Fetch and display storage info
@@ -510,13 +640,147 @@ async function df(n) {
   ls();
 }
 
+// Convert video or image to .qgif in browser
+async function convertMediaToQgif(file, onProgress) {
+  var W = 128, H = 64;
+  var isVideo = file.type.indexOf('video') === 0 || /\.(mp4|webm|mov|mkv)$/i.test(file.name);
+  var cvs = document.createElement('canvas');
+  cvs.width = W;
+  cvs.height = H;
+  var ctx = cvs.getContext('2d');
+
+  function ditherFrame(imageData) {
+    var pixels = imageData.data;
+    var luma = new Float32Array(W * H);
+    for (var i = 0, p = 0; i < W * H; i++, p += 4) {
+      luma[i] = 0.299 * pixels[p] + 0.587 * pixels[p + 1] + 0.114 * pixels[p + 2];
+    }
+    var out = new Uint8Array(W * H >> 3);
+    for (var y = 0; y < H; y++) {
+      for (var x = 0; x < W; x++) {
+        var idx = y * W + x;
+        var val = luma[idx];
+        var isDark = val < 128;
+        if (isDark) {
+          out[idx >> 3] |= (1 << (7 - (idx & 7)));
+        }
+        var targetVal = isDark ? 0 : 255;
+        var err = val - targetVal;
+        if (x + 1 < W) luma[idx + 1] += err * 7 / 16;
+        if (y + 1 < H) {
+          if (x > 0) luma[idx + W - 1] += err * 3 / 16;
+          luma[idx + W] += err * 5 / 16;
+          if (x + 1 < W) luma[idx + W + 1] += err * 1 / 16;
+        }
+      }
+    }
+    return out;
+  }
+
+  var frames = [];
+  var delays = [];
+
+  if (isVideo) {
+    if (onProgress) onProgress('Loading video...');
+    var video = document.createElement('video');
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = 'auto';
+    var url = URL.createObjectURL(file);
+    video.src = url;
+
+    await new Promise(function(resolve, reject) {
+      video.onloadedmetadata = function() { resolve(); };
+      video.onerror = function() { reject(new Error('Video format not supported by browser')); };
+    });
+
+    var duration = Math.min(video.duration || 3.0, 5.0);
+    var fps = 10;
+    var totalFrames = Math.max(1, Math.min(30, Math.floor(duration * fps)));
+    var delayMs = Math.round((duration * 1000) / totalFrames);
+
+    for (var f = 0; f < totalFrames; f++) {
+      var seekTime = f * (duration / totalFrames);
+      if (onProgress) onProgress('Converting frame ' + (f + 1) + '/' + totalFrames + '...');
+      await new Promise(function(resolve) {
+        var onSeek = function() {
+          video.removeEventListener('seeked', onSeek);
+          resolve();
+        };
+        video.addEventListener('seeked', onSeek);
+        video.currentTime = seekTime;
+      });
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, W, H);
+      var vw = video.videoWidth || W;
+      var vh = video.videoHeight || H;
+      var scale = Math.min(W / vw, H / vh);
+      var dw = vw * scale;
+      var dh = vh * scale;
+      var dx = (W - dw) / 2;
+      var dy = (H - dh) / 2;
+      ctx.drawImage(video, dx, dy, dw, dh);
+      frames.push(ditherFrame(ctx.getImageData(0, 0, W, H)));
+      delays.push(delayMs);
+    }
+    URL.revokeObjectURL(url);
+  } else {
+    // Image
+    if (onProgress) onProgress('Loading image...');
+    var img = new Image();
+    var url = URL.createObjectURL(file);
+    img.src = url;
+    await new Promise(function(resolve, reject) {
+      img.onload = function() { resolve(); };
+      img.onerror = function() { reject(new Error('Image format not supported by browser')); };
+    });
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+    var scale = Math.min(W / img.width, H / img.height);
+    var dw = img.width * scale;
+    var dh = img.height * scale;
+    var dx = (W - dw) / 2;
+    var dy = (H - dh) / 2;
+    ctx.drawImage(img, dx, dy, dw, dh);
+    frames.push(ditherFrame(ctx.getImageData(0, 0, W, H)));
+    delays.push(1000);
+    URL.revokeObjectURL(url);
+  }
+
+  var numFrames = frames.length;
+  var totalBytes = 5 + (numFrames * 2) + (numFrames * 1024);
+  var buf = new Uint8Array(totalBytes);
+  buf[0] = numFrames;
+  buf[1] = 128 & 0xFF; buf[2] = 0;
+  buf[3] = 64 & 0xFF;  buf[4] = 0;
+  var offset = 5;
+  for (var i = 0; i < numFrames; i++) {
+    var d = delays[i] || 100;
+    buf[offset++] = d & 0xFF;
+    buf[offset++] = (d >> 8) & 0xFF;
+  }
+  for (var i = 0; i < numFrames; i++) {
+    buf.set(frames[i], offset);
+    offset += 1024;
+  }
+  return new Blob([buf], { type: 'application/octet-stream' });
+}
+
 // Upload a single file
-async function uf1(file) {
+async function uf1(file, onProgress) {
+  var uploadBlob = file;
+  var uploadName = file.name;
+  if (!file.name.toLowerCase().endsWith('.qgif')) {
+    uploadBlob = await convertMediaToQgif(file, onProgress);
+    var dot = file.name.lastIndexOf('.');
+    uploadName = (dot > 0 ? file.name.substring(0, dot) : file.name) + '.qgif';
+  }
+  if (onProgress) onProgress('Uploading ' + uploadName + ' to ESP32...');
   var fd = new FormData();
-  fd.append('file', file);
+  fd.append('file', uploadBlob, uploadName);
   var r = await fetch('/api/upload', { method: 'POST', body: fd });
   var d = await r.json();
-  return { ok: r.ok, name: file.name, error: d.error || 'Upload failed' };
+  return { ok: r.ok, name: uploadName, error: d.error || 'Upload failed' };
 }
 
 // Upload multiple files sequentially
@@ -529,22 +793,23 @@ async function uf(files) {
 
   for (var i = 0; i < files.length; i++) {
     m.className   = 'msg ok';
-    m.textContent = 'Uploading ' + (i + 1) + '/' + files.length + ': ' + files[i].name + '...';
     m.style.display = 'block';
 
     try {
-      var r = await uf1(files[i]);
+      var r = await uf1(files[i], function(statusText) {
+        m.textContent = '[' + (i + 1) + '/' + files.length + '] ' + statusText;
+      });
       if (r.ok) ok++;
       else { fail++; errs.push(r.name + ': ' + r.error); }
     } catch (e) {
       fail++;
-      errs.push(files[i].name + ': error');
+      errs.push(files[i].name + ': ' + (e.message || 'error'));
     }
   }
 
   if (fail == 0) {
     m.className   = 'msg ok';
-    m.textContent = 'Uploaded ' + ok + ' file' + (ok > 1 ? 's' : '') + '.';
+    m.textContent = 'Uploaded ' + ok + ' file' + (ok > 1 ? 's' : '') + ' successfully.';
   } else {
     m.className   = 'msg error';
     m.textContent = ok + ' ok, ' + fail + ' failed: ' + errs.join('; ');

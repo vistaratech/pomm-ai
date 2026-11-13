@@ -43,6 +43,10 @@ uint8_t getBuzzerVolume();
 void     setPlaybackSpeed(uint16_t val);
 uint16_t getPlaybackSpeed();
 
+// --- Face cycle duration (seconds, default 30; 0 = disabled) ---
+void     setFaceDurationSec(uint16_t sec);
+uint16_t getFaceDurationSec();
+
 // --- MQTT configuration ---
 // Limits aligned with firmware buffer and common practice (host = setServer buffer).
 #define MQTT_HOST_MAX_LEN   127

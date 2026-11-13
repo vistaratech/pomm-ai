@@ -5,6 +5,7 @@
 #define DISPLAY_TASK_H
 
 #include <Arduino.h>
+#include "app_state.h"
 
 // FreeRTOS task: runs the display state machine.
 // Priority 2, stack 8192 bytes.
@@ -21,5 +22,14 @@ void displayShowClock(uint32_t durationMs = 20000);
 
 // Show static photo or camera frame on OLED (durationMs = 0 to stay until tap or new cmd)
 void displayShowPhoto(const uint8_t *frameData, uint32_t durationMs = 0);
+
+// Start countdown timer on OLED (seconds > 0)
+void displayStartTimer(uint32_t seconds);
+
+// Cancel running timer
+void displayCancelTimer();
+
+// Get current display state
+DisplayState getDisplayState();
 
 #endif // DISPLAY_TASK_H

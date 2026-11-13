@@ -52,4 +52,8 @@ bool     timerUiGetDone();
 void timerUiSetStarted(bool started);
 void timerUiSetLastTickMs(unsigned long ms);
 
+// External timer start / cancel (e.g. from web dashboard)
+void timerUiStart(uint32_t seconds);
+void timerUiCancel();
+
 #endif // TIMER_UI_H

@@ -133,9 +133,8 @@ static void enterState(DisplayState newState) {
 void displayShowRobotFace() {
     enterState(GIF_PLAYBACK);
     if (gifPlayerHasFiles()) {
-        gifPlayerBuildShuffleBag();
-        gifPlayerSetAutoAdvance(1);
-        gifPlayerSetFile(gifPlayerNextShuffle());
+        gifPlayerScanFiles();
+        gifPlayerSetFile(gifPlayerNextSequential());
     } else {
         gifPlayerStartIdleIfNoUserGifs();
     }
@@ -206,6 +205,21 @@ void displayShowPhoto(const uint8_t *frameData, uint32_t durationMs) {
     uint8_t temp[QGIF_FRAME_SIZE];
     memcpy(temp, _photoBuf, QGIF_FRAME_SIZE);
     gifRenderFrame(&u8g2, temp, QGIF_FRAME_WIDTH, QGIF_FRAME_HEIGHT);
+}
+
+void displayStartTimer(uint32_t seconds) {
+    timerUiStart(seconds);
+    enterState(TIMER_RUNNING);
+    timerUiDrawRunning(timerUiGetRemainSec(), true);
+}
+
+void displayCancelTimer() {
+    timerUiCancel();
+    enterState(GIF_PLAYBACK);
+}
+
+DisplayState getDisplayState() {
+    return _state;
 }
 
 // ==========================================================================
@@ -688,7 +702,7 @@ void displayTask(void *param) {
                             }
                             break;
                         case SINGLE_TAP: {
-                            String next = gifPlayerNextShuffle();
+                            String next = gifPlayerNextSequential();
                             if (next.length() > 0) {
                                 gifPlayerSetFile(next);
                                 mqttPublishAnimationState(next);
@@ -1106,9 +1120,8 @@ void displayTask(void *param) {
                 if (elapsed >= CONNECTED_INFO_MS) {
                     enterState(GIF_PLAYBACK);
                     if (gifPlayerHasFiles()) {
-                        gifPlayerBuildShuffleBag();
-                        gifPlayerSetAutoAdvance(1);
-                        gifPlayerSetFile(gifPlayerNextShuffle());
+                        gifPlayerScanFiles();
+                        gifPlayerSetFile(gifPlayerNextSequential());
                     } else {
                         // Without .qgif files, gifPlayerTick would not draw (_playing false, idle off).
                         gifPlayerStartIdleIfNoUserGifs();

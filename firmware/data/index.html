@@ -44,11 +44,11 @@
   </div>
 
   <div class="card">
-    <div class="card-title">Upload</div>
+    <div class="card-title">Upload (Animations, Videos & Images)</div>
     <div class="upload-area" id="dz" onclick="document.getElementById('fi').click()">
-      <input type="file" id="fi" accept=".qgif" multiple>
+      <input type="file" id="fi" accept=".qgif,.gif,.mp4,.webm,.png,.jpg,.jpeg" multiple>
       <span class="upload-icon">&#8682;</span>
-      Drop .qgif files here or tap to upload
+      Drop .qgif, Video (.mp4 / .webm) or Images here to upload
     </div>
     <div class="msg" id="msg"></div>
   </div>
@@ -90,6 +90,7 @@
     </div>
     <button class="btn btn-save" id="btnDevSave">Save Name</button>
     <div class="device-actions">
+      <button class="btn btn-secondary" id="btnShowClock" type="button" title="Display live clock on OLED">Show Clock</button>
       <button class="btn btn-secondary" id="btnWifiReset">WiFi Reset</button>
       <button class="btn btn-secondary" id="btnReboot">Reboot</button>
     </div>
@@ -197,8 +198,45 @@
     <button class="btn btn-save" id="btnMqttSave">Save MQTT</button>
   </div>
 
+  <div class="card">
+    <div class="card-title card-title-row">
+      <span class="card-title-text">Timer</span>
+      <span class="pill pill-status" id="timerStatusPill">Idle</span>
+    </div>
+    <div class="setting" id="timerDisplayRow" style="display:none">
+      <label class="setting-label">Remaining</label>
+      <span class="setting-val-wide" id="timerRemainVal" style="font-size:1.3rem;font-weight:700;color:var(--accent,#00e5ff)">00:00</span>
+    </div>
+    <div class="setting">
+      <label class="setting-label">Presets</label>
+      <div class="device-actions" style="margin:0;gap:6px">
+        <button class="pill-btn btn-timer-preset" type="button" data-min="1">1m</button>
+        <button class="pill-btn btn-timer-preset" type="button" data-min="5">5m</button>
+        <button class="pill-btn btn-timer-preset" type="button" data-min="10">10m</button>
+        <button class="pill-btn btn-timer-preset" type="button" data-min="25">25m (Pomo)</button>
+      </div>
+    </div>
+    <div class="setting">
+      <label class="setting-label">Custom</label>
+      <div style="display:flex;gap:8px;align-items:center;flex:1">
+        <input type="number" id="timerMinInput" class="input-text" style="width:65px;text-align:center" min="0" max="180" value="5"> min
+        <input type="number" id="timerSecInput" class="input-text" style="width:65px;text-align:center" min="0" max="59" value="0"> sec
+      </div>
+    </div>
+    <div class="device-actions">
+      <button class="btn btn-save" id="btnTimerStart" type="button">Start Timer</button>
+      <button class="btn btn-secondary" id="btnTimerStop" type="button" disabled>Stop</button>
+    </div>
+    <div class="msg" id="timerMsg"></div>
+  </div>
+
   <div class="card collapsible collapsed">
     <div class="card-title">Settings</div>
+    <div class="setting">
+      <label class="setting-label">Face Interval</label>
+      <input type="range" id="rFaceDur" min="0" max="120" step="5" value="30" class="slider">
+      <span class="setting-val"><span id="vFaceDur">30</span>s</span>
+    </div>
     <div class="setting">
       <label class="setting-label">Speed</label>
       <input type="range" id="rSpeed" min="1" max="10" value="5" class="slider">

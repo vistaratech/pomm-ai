@@ -33,6 +33,16 @@ String gifPlayerNextShuffle();
 // Pass 0 to disable auto-advance (default).
 void gifPlayerSetAutoAdvance(uint8_t loopsPerGif);
 
+// Set time in seconds each face is displayed before cycling (default 30s; 0 = disabled)
+void gifPlayerSetFaceDuration(uint16_t seconds);
+uint16_t gifPlayerGetFaceDuration();
+
+// Scan LittleFS for all .qgif files and keep list sorted
+void gifPlayerScanFiles();
+
+// Cycle through all files in order one by one
+String gifPlayerNextSequential();
+
 // Request a file change (takes effect on next tick).
 // Pass an empty string to stop playback.
 void gifPlayerSetFile(const String &filename);

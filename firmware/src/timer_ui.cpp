@@ -181,3 +181,21 @@ bool     timerUiGetDone()      { return _done; }
 
 void timerUiSetStarted(bool started) { _started = started; }
 void timerUiSetLastTickMs(unsigned long ms) { _lastTickMs = ms; }
+
+void timerUiStart(uint32_t seconds) {
+    if (seconds == 0) return;
+    _hours = (uint8_t)(seconds / 3600);
+    _minutes = (uint8_t)((seconds % 3600) / 60);
+    _seconds = (uint8_t)(seconds % 60);
+    _remainSec = seconds;
+    _lastDisplaySec = UINT32_MAX;
+    _done = false;
+    _started = true;
+    _lastTickMs = millis();
+}
+
+void timerUiCancel() {
+    _started = false;
+    _done = false;
+    _remainSec = 0;
+}
