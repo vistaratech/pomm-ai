@@ -699,7 +699,9 @@ function setPlayingBanner(filename: string): void {
 // ============================================================
 
 function updateConnectionUI(connected: boolean, name: string = 'PommAI', type: string = 'BLE'): void {
+  const dot = document.getElementById('status-dot');
   const dockDot = document.getElementById('dock-status-dot');
+  const headerText = document.getElementById('header-conn-text');
   const dockLabel = document.getElementById('dock-conn-label');
   const tag = document.getElementById('modal-conn-tag');
   const disBtn = document.getElementById('btn-disconnect-all');
@@ -707,7 +709,9 @@ function updateConnectionUI(connected: boolean, name: string = 'PommAI', type: s
   const serialCardSub = document.getElementById('serial-card-sub');
 
   if (connected) {
+    dot?.classList.add('online');
     dockDot?.classList.add('online');
+    if (headerText) headerText.textContent = type === 'BLE' ? 'BLE Active' : 'USB Active';
     if (dockLabel) dockLabel.textContent = 'Online';
     if (tag) {
       tag.textContent = `${name} Online (${type})`;
@@ -717,7 +721,9 @@ function updateConnectionUI(connected: boolean, name: string = 'PommAI', type: s
     if (type === 'BLE' && bleCardSub) bleCardSub.textContent = `Connected to ${name}`;
     if (type === 'Serial' && serialCardSub) serialCardSub.textContent = `Connected via USB`;
   } else {
+    dot?.classList.remove('online');
     dockDot?.classList.remove('online');
+    if (headerText) headerText.textContent = 'Connect';
     if (dockLabel) dockLabel.textContent = 'Connect';
     if (tag) {
       tag.textContent = 'Offline';
@@ -786,17 +792,22 @@ async function sendCommand(command: string): Promise<boolean> {
 // Direct Web Bluetooth pairing (Direct user gesture without async interruption)
 async function connectBleByName(): Promise<void> {
   if (!(navigator as any).bluetooth) {
-    alert('Web Bluetooth requires Chrome, Edge, or Android Browser.');
+    if (!window.isSecureContext) {
+      alert('Web Bluetooth requires a Secure Context (HTTPS or http://localhost).\n\nIf using http://pommai.local, please connect via "Web Serial (USB-C)" below, or enable chrome://flags/#unsafely-treat-insecure-origin-as-secure');
+    } else {
+      alert('Web Bluetooth requires Google Chrome, Microsoft Edge, or Opera on Windows, Android, or macOS.');
+    }
     return;
   }
 
-  appendLog('[Bluetooth] Scanning for Bluetooth device named "PommAI"...');
+  appendLog('[Bluetooth] Scanning for PommAI Bluetooth device...');
 
   try {
     const device = await (navigator as any).bluetooth.requestDevice({
       filters: [
         { name: 'PommAI' },
         { namePrefix: 'Pomm' },
+        { services: [NUS_SERVICE_UUID] },
       ],
       optionalServices: [NUS_SERVICE_UUID, 'generic_access', 'battery_service'],
     });
@@ -804,6 +815,10 @@ async function connectBleByName(): Promise<void> {
     if (!device) return;
     await setupBleConnection(device);
   } catch (err: any) {
+    if (err.name === 'NotFoundError') {
+      appendLog('[Bluetooth] Pairing prompt cancelled by user.');
+      return;
+    }
     appendLog(`[Bluetooth Error] ${err.message}`);
     showToast(`Bluetooth: ${err.message}`);
   }
@@ -812,7 +827,11 @@ async function connectBleByName(): Promise<void> {
 // Scan all Bluetooth devices fallback
 async function connectBleAll(): Promise<void> {
   if (!(navigator as any).bluetooth) {
-    alert('Web Bluetooth requires Chrome, Edge, or Android Browser.');
+    if (!window.isSecureContext) {
+      alert('Web Bluetooth requires a Secure Context (HTTPS or http://localhost).\n\nIf using http://pommai.local, please connect via "Web Serial (USB-C)" below, or enable chrome://flags/#unsafely-treat-insecure-origin-as-secure');
+    } else {
+      alert('Web Bluetooth requires Google Chrome, Microsoft Edge, or Opera on Windows, Android, or macOS.');
+    }
     return;
   }
 
@@ -827,6 +846,10 @@ async function connectBleAll(): Promise<void> {
     if (!device) return;
     await setupBleConnection(device);
   } catch (err: any) {
+    if (err.name === 'NotFoundError') {
+      appendLog('[Bluetooth] Scanning cancelled by user.');
+      return;
+    }
     appendLog(`[Bluetooth Error] ${err.message}`);
     showToast(`Bluetooth: ${err.message}`);
   }
@@ -839,11 +862,14 @@ async function setupBleConnection(device: any): Promise<void> {
 
   device.addEventListener('gattserverdisconnected', onBleDisconnected);
 
-  const server = await device.gatt.connect();
-  activeBleServer = server;
-  appendLog('[Bluetooth] GATT Server connected.');
-
   try {
+    const server = await device.gatt.connect();
+    activeBleServer = server;
+    appendLog('[Bluetooth] GATT Server connected.');
+
+    // Give GATT server a moment to resolve services (especially on Windows)
+    await new Promise((r) => setTimeout(r, 250));
+
     const service = await server.getPrimaryService(NUS_SERVICE_UUID);
     appendLog('[Bluetooth] Nordic UART Service found.');
 
@@ -881,17 +907,25 @@ async function setupBleConnection(device: any): Promise<void> {
       } else if (text.startsWith('OK:SAVED:')) {
         const name = text.replace('OK:SAVED:', '').trim();
         showToast(`✓ Photo saved as ${name} on PommAI!`);
+      } else if (text.startsWith('OK:TIMER:')) {
+        showToast('✓ Countdown timer running on PommAI OLED!');
+      } else if (text.startsWith('OK:TIMER_STOPPED')) {
+        showToast('✓ Timer stopped');
       }
     });
 
     appendLog('[Bluetooth] RX/TX channels initialized.');
+    await sendBleCommand('PING');
+    updateConnectionUI(true, devName, 'BLE');
+    showToast(`✓ Connected to ${devName} over Bluetooth!`);
   } catch (e: any) {
-    appendLog(`[Bluetooth Service Note] ${e.message}`);
+    appendLog(`[Bluetooth Connection Error] ${e.message}`);
+    showToast(`Bluetooth Error: ${e.message}`);
+    updateConnectionUI(false);
+    if (activeBleDevice && activeBleDevice.gatt.connected) {
+      activeBleDevice.gatt.disconnect();
+    }
   }
-
-  await sendBleCommand('PING');
-  updateConnectionUI(true, devName, 'BLE');
-  showToast(`✓ Connected to ${devName} over Bluetooth!`);
 }
 
 function onBleDisconnected(): void {
@@ -1601,6 +1635,7 @@ function initPhotoStudio(): void {
 
 function initConnectivityModal(): void {
   const modal = document.getElementById('conn-modal');
+  const openBtn = document.getElementById('btn-open-conn');
   const dockOpenBtn = document.getElementById('btn-dock-conn');
   const closeBtn = document.getElementById('btn-close-modal');
   const btnBle = document.getElementById('btn-ble-connect');
@@ -1608,6 +1643,10 @@ function initConnectivityModal(): void {
   const btnSerial = document.getElementById('btn-serial-connect');
   const btnDisconnect = document.getElementById('btn-disconnect-all');
   const btnClearLogs = document.getElementById('btn-clear-logs');
+
+  openBtn?.addEventListener('click', () => {
+    if (modal) modal.hidden = false;
+  });
 
   dockOpenBtn?.addEventListener('click', () => {
     if (modal) modal.hidden = false;

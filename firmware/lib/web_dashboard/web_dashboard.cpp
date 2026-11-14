@@ -5,6 +5,7 @@
 #include "../../src/network_task.h"
 #include "../../src/display_task.h"
 #include "../../src/timer_ui.h"
+#include "../../src/ble_task.h"
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
@@ -477,6 +478,8 @@ static void handleGetDevice(AsyncWebServerRequest *request) {
     EventBits_t bits        = xEventGroupGetBits(connectivityBits);
     doc["mqtt_connected"]   = (bits & MQTT_CONNECTED_BIT) != 0;
     doc["mqtt_enabled"]     = getMqttEnabled();
+    doc["ble_connected"]    = bleIsConnected();
+    doc["ble_advertising"]  = true;
     doc["firmware"]         = kQbitVersion;
     bool ua = updateAvailable;
     doc["update_available"] = ua;

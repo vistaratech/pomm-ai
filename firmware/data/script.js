@@ -51,6 +51,21 @@ function setMqttPill(el, enabled, connected) {
   el.classList.add(connected ? 'pill-on' : 'pill-off');
 }
 
+function setBlePill(el, connected, advertising) {
+  if (!el) return;
+  el.classList.remove('pill-on', 'pill-off', 'pill-na');
+  if (connected) {
+    el.textContent = 'Connected';
+    el.classList.add('pill-on');
+  } else if (advertising) {
+    el.textContent = 'Advertising (PommAI)';
+    el.classList.add('pill-off');
+  } else {
+    el.textContent = 'Off';
+    el.classList.add('pill-na');
+  }
+}
+
 // Device info -- fetch ID and name, allow renaming
 (function () {
   var devId = document.getElementById('devId');
@@ -64,6 +79,7 @@ function setMqttPill(el, enabled, connected) {
   var devFwPopoverLatest = document.getElementById('devFwPopoverLatest');
   var devServerPill = document.getElementById('devServerPill');
   var devMqttPill = document.getElementById('devMqttPill');
+  var devBlePill = document.getElementById('devBlePill');
   var devCombinedUptime = document.getElementById('devCombinedUptime');
 
   var fwPopoverOpenTimer = null;
@@ -112,6 +128,7 @@ function setMqttPill(el, enabled, connected) {
     }
     setServerPill(devServerPill, !!d.server_connected);
     setMqttPill(devMqttPill, !!d.mqtt_enabled, !!d.mqtt_connected);
+    setBlePill(devBlePill, !!d.ble_connected, !!d.ble_advertising);
 
     var boot = fmtUptime(d.uptime_s);
     var srv = d.server_connected ? fmtUptime(d.server_uptime_s) : '—';

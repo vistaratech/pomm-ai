@@ -164,11 +164,24 @@ static void handleCommand(const String &cmd) {
         displayShowClock(25000); // Re-render with new 24h format
         bleNotify("OK:FMT24");
     } else if (trimmed.equalsIgnoreCase("CLOCK") || trimmed.startsWith("CLOCK:")) {
-        displayShowClock(30000); // Show clock on OLED!
+        setClockMode(true);
+        saveSettings();
+        displayShowClock(0); // 0 = indefinite / persistent always-on clock!
         bleNotify("OK:CLOCK");
     } else if (trimmed.equalsIgnoreCase("FACE") || trimmed.equalsIgnoreCase("STOP")) {
+        setClockMode(false);
+        saveSettings();
         displayShowRobotFace();
         bleNotify("OK:FACE");
+    } else if (trimmed.startsWith("TIMER:")) {
+        uint32_t sec = trimmed.substring(6).toInt();
+        if (sec > 0) {
+            displayStartTimer(sec);
+            bleNotify("OK:TIMER:" + String(sec));
+        }
+    } else if (trimmed.equalsIgnoreCase("TIMER_STOP") || trimmed.equalsIgnoreCase("STOP_TIMER")) {
+        displayCancelTimer();
+        bleNotify("OK:TIMER_STOPPED");
     } else if (trimmed.equalsIgnoreCase("PING")) {
         bleNotify("PONG:PommAI");
     } else if (trimmed.equalsIgnoreCase("INFO")) {
