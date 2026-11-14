@@ -152,7 +152,22 @@ void gifPlayerScanFiles() {
 String gifPlayerNextSequential() {
   if (_fileTotal == 0) gifPlayerScanFiles();
   if (_fileTotal == 0) return "";
-  _fileIndex = (_fileIndex + 1) % _fileTotal;
+
+  int foundIdx = -1;
+  if (_currentFile.length() > 0) {
+    for (uint8_t i = 0; i < _fileTotal; i++) {
+      if (_fileList[i] == _currentFile || ("/" + _fileList[i]) == _currentFile) {
+        foundIdx = i;
+        break;
+      }
+    }
+  }
+
+  if (foundIdx >= 0) {
+    _fileIndex = (foundIdx + 1) % _fileTotal;
+  } else {
+    _fileIndex = (_fileIndex + 1) % _fileTotal;
+  }
   return _fileList[_fileIndex];
 }
 
@@ -243,21 +258,11 @@ String gifPlayerGetNextFile(const String &current) {
 // ---------------------------------------------------------------------------
 
 void gifPlayerBuildShuffleBag() {
-  File root = LittleFS.open("/");
-  if (!root || !root.isDirectory()) { _shuffleTotal = 0; return; }
-
+  if (_fileTotal == 0) gifPlayerScanFiles();
   _shuffleTotal = 0;
-  File f = root.openNextFile();
-  while (f && _shuffleTotal < QGIF_MAX_FRAMES) {
-    String name = String(f.name());
-    f.close();
-    if (name.endsWith(".qgif")) {
-      if (name.startsWith("/")) name = name.substring(1);
-      _shuffleBag[_shuffleTotal++] = name;
-    }
-    f = root.openNextFile();
+  for (uint8_t i = 0; i < _fileTotal && i < QGIF_MAX_FRAMES; i++) {
+    _shuffleBag[_shuffleTotal++] = _fileList[i];
   }
-  root.close();
 
   // Fisher-Yates shuffle
   for (int i = (int)_shuffleTotal - 1; i > 0; i--) {
@@ -270,19 +275,14 @@ void gifPlayerBuildShuffleBag() {
 }
 
 String gifPlayerNextShuffle() {
+  if (_shuffleTotal == 0) gifPlayerBuildShuffleBag();
   if (_shuffleTotal == 0) return "";
   if (_shuffleTotal == 1) return _shuffleBag[0];
 
   if (_shufflePos >= _shuffleTotal) {
-    // Remember the last file handed out so we can avoid repeating it
-    // at the boundary between two shuffles.
     String last = _shuffleBag[_shuffleTotal - 1];
-
     gifPlayerBuildShuffleBag();
     if (_shuffleTotal == 0) return "";
-
-    // If the new bag starts with the same file that ended the old bag,
-    // swap it to a random other position.
     if (_shuffleBag[0] == last && _shuffleTotal > 1) {
       uint8_t sw = 1 + random(_shuffleTotal - 1);
       _shuffleBag[0]  = _shuffleBag[sw];
@@ -376,16 +376,10 @@ void gifPlayerTick() {
           // Idle loops done -- switch to next GIF (or keep idling if there are no .qgif files)
           _idlePlaying   = false;
           _idleLoopCount = 0;
-          String next = gifPlayerNextShuffle();
+          String next = gifPlayerNextSequential();
           if (next.length() > 0) {
             _requestedFile = next;
             _fileChanged   = true;
-          } else if (_idleAnim) {
-            _idlePlaying     = true;
-            _idleFrame       = 0;
-            _idleLoopCount   = 0;
-            _idleLoopTarget  = 1 + (esp_random() % 5);
-            _idleLastFrameMs = 0;
           }
         }
       }
@@ -437,20 +431,12 @@ void gifPlayerTick() {
       _loopCount = 0;
       _gifStartMs = millis();
 
-      // If idle animation is configured, play it before the next GIF
-      if (_idleAnim) {
-        _idlePlaying     = true;
-        _idleFrame       = 0;
-        _idleLoopCount   = 0;
-        _idleLoopTarget  = 1 + (esp_random() % 5);  // 1..5 random loops
-        _idleLastFrameMs = 0;  // render first frame immediately
-      } else {
-        // Advance sequentially through all 52 files one by one
-        String next = gifPlayerNextSequential();
-        if (next.length() > 0) {
-          _requestedFile = next;
-          _fileChanged   = true;
-        }
+      // Advance directly and sequentially to the next emotion / face
+      String next = gifPlayerNextSequential();
+      if (next.length() > 0) {
+        Serial.printf("[FACE] Advancing to next expression: %s\n", next.c_str());
+        _requestedFile = next;
+        _fileChanged   = true;
       }
     }
   }

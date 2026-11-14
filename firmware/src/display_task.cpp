@@ -618,12 +618,7 @@ void displayTask(void *param) {
                                      "http://pommai.local");
                         }
                     } else {
-                        if (_state == GIF_PLAYBACK && !_offlineShown) {
-                            _offlineShown = true;
-                            _offlineStartMs = now;
-                            _offlineMsg = "WiFi Offline";
-                            showText(_offlineMsg);
-                        }
+                        // Suppress blocking offline text so animations cycle smoothly even when disconnected
                     }
                     break;
 
@@ -1077,8 +1072,8 @@ void displayTask(void *param) {
 
         switch (_state) {
             case WIFI_SETUP: {
-                // If Bluetooth connected or 6 seconds passed, exit QR code and show Robot Face!
-                if (bleIsConnected() || elapsed >= 6000) {
+                // If Bluetooth connected or 3 seconds passed, exit QR code and start showing Robot Faces!
+                if (bleIsConnected() || elapsed >= 3000) {
                     displayShowRobotFace();
                     break;
                 }
@@ -1134,55 +1129,8 @@ void displayTask(void *param) {
                     _offlineMsg = nullptr;
                 }
 
-                // Debounced Server Offline (after stable disconnect) and re-arm (after stable reconnect)
-                if (_wsClearOfflineNotifEarliestMs != 0 && now >= _wsClearOfflineNotifEarliestMs) {
-                    _wsClearOfflineNotifEarliestMs = 0;
-                    if (xEventGroupGetBits(connectivityBits) & WS_CONNECTED_BIT) {
-                        _serverOfflineNotified = false;
-                    }
-                }
-                if (_wsOfflineOverlayEarliestMs != 0 && now >= _wsOfflineOverlayEarliestMs) {
-                    _wsOfflineOverlayEarliestMs = 0;
-                    if (!(xEventGroupGetBits(connectivityBits) & WS_CONNECTED_BIT) &&
-                        !_serverOfflineNotified && !_offlineShown) {
-                        _serverOfflineNotified = true;
-                        _offlineShown = true;
-                        _offlineStartMs = now;
-                        _offlineMsg = "Server Offline";
-                        showText(_offlineMsg);
-                    }
-                }
-
-                // Update available: OLED overlay for UPDATE_PROMPT_MS only; do not clear
-                // updateAvailable (web /api/device and HA still need the flag until flash or re-check).
-                {
-                    static unsigned long updatePromptStartMs = 0;
-                    static bool          updateOledDismissed = false;
-                    if (!updateAvailable) {
-                        updateOledDismissed = false;
-                        updatePromptStartMs = 0;
-                    }
-                    if (updateAvailable && !updateOledDismissed) {
-                        if (updatePromptStartMs == 0) updatePromptStartMs = now;
-                        char curLine[32], latLine[32];
-                        // Add "v" only for semantic versions (e.g. 0.0.0); show dev-build etc as-is
-                        auto fmtCur = (kQbitVersion[0] == 'v' || kQbitVersion[0] == 'V')
-                            ? "Current: %s"
-                            : (kQbitVersion[0] >= '0' && kQbitVersion[0] <= '9') ? "Current: v%s" : "Current: %s";
-                        auto fmtLat = (updateAvailableVersion[0] == 'v' || updateAvailableVersion[0] == 'V')
-                            ? "Latest: %s"
-                            : (updateAvailableVersion[0] >= '0' && updateAvailableVersion[0] <= '9') ? "Latest: v%s" : "Latest: %s";
-                        snprintf(curLine, sizeof(curLine), fmtCur, kQbitVersion);
-                        snprintf(latLine, sizeof(latLine), fmtLat, updateAvailableVersion);
-                        showText("[ Update available ]", "", curLine, latLine);
-                        if (now - updatePromptStartMs >= UPDATE_PROMPT_MS) {
-                            updateOledDismissed = true;
-                            updatePromptStartMs = 0;
-                        }
-                    } else if (!_offlineShown) {
-                        gifPlayerTick();
-                    }
-                }
+                // Run animation tick continuously without blocking when offline
+                gifPlayerTick();
                 break;
 
             case POKE_DISPLAY:
