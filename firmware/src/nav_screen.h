@@ -57,3 +57,4 @@ void navScreenDraw(U8G2 &u8g2, unsigned long now);
 NavIcon navScreenParseIcon(const String &str);
 
 #endif // NAV_SCREEN_H
+
