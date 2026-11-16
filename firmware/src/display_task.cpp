@@ -20,6 +20,7 @@
 #include "games/trex_runner/trex_runner.h"
 #include "games/flappy_bird/flappy_bird.h"
 #include "games/car_avoidance/car_avoidance.h"
+#include "nav_screen.h"
 
 #include "gif_types.h"
 #include "sys_scx.h"
@@ -217,6 +218,25 @@ void displayStartTimer(uint32_t seconds) {
 void displayCancelTimer() {
     timerUiCancel();
     enterState(GIF_PLAYBACK);
+}
+
+void displayShowNavigation(const String &icon, const String &distance, const String &street) {
+    navScreenUpdate(icon, distance, street);
+    enterState(NAVIGATION_VIEW);
+}
+
+void displayShowNavigationNatural(const String &title, const String &text) {
+    navScreenParseNatural(title, text);
+    enterState(NAVIGATION_VIEW);
+}
+
+void displayStopNavigation() {
+    navScreenStop();
+    displayShowRobotFace();
+}
+
+bool displayIsNavigating() {
+    return (_state == NAVIGATION_VIEW) && navScreenIsActive();
 }
 
 DisplayState getDisplayState() {
@@ -1062,6 +1082,16 @@ void displayTask(void *param) {
                         enterSettingsMenu();
                     }
                     break;
+
+                case NAVIGATION_VIEW:
+                    if (gesture.type == SINGLE_TAP) {
+                        displayShowRobotFace();
+                    } else if (gesture.type == DOUBLE_TAP) {
+                        displayShowClock(15000);
+                    } else if (gesture.type == LONG_PRESS) {
+                        displayStopNavigation();
+                    }
+                    break;
             }
         }
 
@@ -1368,6 +1398,17 @@ void displayTask(void *param) {
 
             case PHOTO_VIEW:
                 if (_photoDurationMs > 0 && elapsed >= _photoDurationMs) {
+                    displayShowRobotFace();
+                }
+                break;
+
+            case NAVIGATION_VIEW:
+                navScreenDraw(u8g2, now);
+                rotateBuffer180();
+                u8g2.sendBuffer();
+                // If navigation active and no packet received for 35 seconds, revert to buddy face
+                if (now - navScreenGetLastUpdateMs() > 35000) {
+                    navScreenStop();
                     displayShowRobotFace();
                 }
                 break;

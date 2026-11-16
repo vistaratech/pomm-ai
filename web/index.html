@@ -246,6 +246,80 @@
       </div>
     </section>
 
+    <!-- ========== VIEW 4: BIKE BUDDY NAVIGATION ========== -->
+    <section class="qbit-tab-view" id="view-nav">
+      <div class="clock-panel-box">
+        <div class="clock-panel-header">
+          <h2 class="clock-panel-title">🏍️ Bike Buddy Navigation</h2>
+          <span class="clock-panel-sub">Turn-by-turn road animation & directions for your motorcycle handlebar.</span>
+        </div>
+
+        <div class="clock-display-card" style="padding:16px">
+          <div style="font-size:0.85rem;color:var(--text-dim,#888);margin-bottom:12px">
+            Quick Maneuver Simulation (Live on OLED):
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:16px">
+            <button class="pill-btn btn-web-nav-quick" type="button" data-icon="LEFT" data-dist="150m" data-street="Anna Salai">⬅ Left 150m</button>
+            <button class="pill-btn btn-web-nav-quick" type="button" data-icon="STRAIGHT" data-dist="1.2km" data-street="GST Road">⬆ Straight 1.2km</button>
+            <button class="pill-btn btn-web-nav-quick" type="button" data-icon="RIGHT" data-dist="250m" data-street="100 Feet Rd">➔ Right 250m</button>
+            <button class="pill-btn btn-web-nav-quick" type="button" data-icon="RIGHT" data-dist="25m" data-street="Turn Now!">⚡ Now! (25m)</button>
+            <button class="pill-btn btn-web-nav-quick" type="button" data-icon="UTURN" data-dist="50m" data-street="U-Turn Point">↶ U-Turn 50m</button>
+            <button class="pill-btn btn-web-nav-quick" type="button" data-icon="ROUNDABOUT" data-dist="200m" data-street="Rotary Exit 2">🔄 Rotary 200m</button>
+          </div>
+
+          <button class="btn-sync-time" id="btn-web-nav-stop" style="background:#ef4444;margin-top:6px">
+            <span>STOP NAV & SHOW BUDDY FACE</span>
+          </button>
+        </div>
+
+        <div class="clock-controls-card">
+          <div class="control-toggle-row">
+            <div>
+              <div class="control-row-title">Maneuver</div>
+              <div class="control-row-hint">Direction indicator</div>
+            </div>
+            <select class="qbit-select" id="web-nav-select-icon">
+              <option value="RIGHT">Turn Right (➔)</option>
+              <option value="LEFT">Turn Left (⬅)</option>
+              <option value="STRAIGHT">Continue Straight (⬆)</option>
+              <option value="SLIGHT_RIGHT">Slight Right (↗)</option>
+              <option value="SLIGHT_LEFT">Slight Left (↖)</option>
+              <option value="SHARP_RIGHT">Sharp Right</option>
+              <option value="SHARP_LEFT">Sharp Left</option>
+              <option value="UTURN">U-Turn (↶)</option>
+              <option value="ROUNDABOUT">Roundabout (🔄)</option>
+              <option value="ARRIVED">Arrived (🏁)</option>
+            </select>
+          </div>
+
+          <div class="control-toggle-row">
+            <div>
+              <div class="control-row-title">Distance</div>
+              <div class="control-row-hint">Remaining distance</div>
+            </div>
+            <input type="text" id="web-nav-dist" class="input-text" style="width:100px;text-align:center" value="250m" />
+          </div>
+
+          <div class="control-toggle-row">
+            <div>
+              <div class="control-row-title">Street / Highway</div>
+              <div class="control-row-hint">Name displayed on top bar</div>
+            </div>
+            <input type="text" id="web-nav-street" class="input-text" style="width:160px" value="Anna Salai" />
+          </div>
+        </div>
+
+        <div class="photo-actions-row">
+          <button class="btn-photo-action btn-send-photo" id="btn-web-nav-send">
+            <svg class="btn-act-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+            </svg>
+            <span>SEND ROUTE TO OLED</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
   </main>
 
   <!-- ================= FLOATING TACTILE PAPER BOTTOM DOCK ================= -->
@@ -273,6 +347,13 @@
           <circle cx="12" cy="13" r="4"/>
         </svg>
         <span class="dock-label">Studio</span>
+      </button>
+
+      <button class="dock-tab" data-tab="nav">
+        <svg class="dock-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+        </svg>
+        <span class="dock-label">Nav</span>
       </button>
 
       <button class="dock-tab dock-connect-btn" id="btn-dock-conn">

@@ -40,7 +40,8 @@ enum DisplayState {
     CAR_RUNNING,
     CAR_OVER,
     CAM_VIEW,
-    PHOTO_VIEW
+    PHOTO_VIEW,
+    NAVIGATION_VIEW
 };
 
 // ==========================================================================

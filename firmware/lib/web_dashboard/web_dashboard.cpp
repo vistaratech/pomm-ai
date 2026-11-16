@@ -417,6 +417,51 @@ static void handlePostTimer(AsyncWebServerRequest *request) {
     }
 }
 
+static void handlePostNav(AsyncWebServerRequest *request) {
+    String icon = "STRAIGHT";
+    String dist = "";
+    String street = "";
+    String action = "";
+
+    if (request->hasParam("action")) {
+        action = request->getParam("action")->value();
+    }
+    if (action == "stop" || action == "cancel" || action == "off") {
+        displayStopNavigation();
+        request->send(200, "application/json", "{\"status\":\"ok\",\"navigating\":false}");
+        return;
+    }
+
+    if (request->hasParam("icon")) {
+        icon = request->getParam("icon")->value();
+    } else if (request->hasParam("turn")) {
+        icon = request->getParam("turn")->value();
+    }
+
+    if (request->hasParam("dist")) {
+        dist = request->getParam("dist")->value();
+    } else if (request->hasParam("distance")) {
+        dist = request->getParam("distance")->value();
+    }
+
+    if (request->hasParam("street")) {
+        street = request->getParam("street")->value();
+    } else if (request->hasParam("road")) {
+        street = request->getParam("road")->value();
+    } else if (request->hasParam("title")) {
+        street = request->getParam("title")->value();
+    }
+
+    if (request->hasParam("natural")) {
+        String natural = request->getParam("natural")->value();
+        displayShowNavigationNatural(street, natural);
+    } else {
+        displayShowNavigation(icon, dist, street);
+    }
+
+    request->send(200, "application/json", "{\"status\":\"ok\",\"navigating\":true}");
+}
+
 // ==========================================================================
 //  Handlers -- Play API
 // ==========================================================================
@@ -939,6 +984,7 @@ void webDashboardInit(AsyncWebServer &server) {
     server.on("/api/clock",         HTTP_POST, handleClock);
     server.on("/api/timer",         HTTP_GET,  handleGetTimer);
     server.on("/api/timer",         HTTP_POST, handlePostTimer);
+    server.on("/api/nav",           HTTP_POST, handlePostNav);
     // Register more specific weather route first to avoid accidental prefix captures.
     server.on("/api/weather/search",HTTP_GET,  handleWeatherSearch);
     server.on("/api/weather",       HTTP_GET,  handleGetWeather);

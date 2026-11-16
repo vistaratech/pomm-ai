@@ -600,6 +600,82 @@ function setBlePill(el, connected, advertising) {
   pollTimer();
 })();
 
+// Bike Buddy Navigation Card Handler
+(function () {
+  var navStatusPill = document.getElementById('navStatusPill');
+  var navSelectIcon = document.getElementById('navSelectIcon');
+  var navInputDist  = document.getElementById('navInputDist');
+  var navInputStreet = document.getElementById('navInputStreet');
+  var btnNavSend    = document.getElementById('btnNavSend');
+  var btnNavStop    = document.getElementById('btnNavStop');
+  var navMsg        = document.getElementById('navMsg');
+  var quickBtns     = document.querySelectorAll('.btn-nav-quick');
+
+  function sendNav(icon, dist, street) {
+    if (navStatusPill) {
+      navStatusPill.textContent = 'Active';
+      navStatusPill.className = 'pill pill-status active';
+    }
+    var url = '/api/nav?icon=' + encodeURIComponent(icon) +
+              '&dist=' + encodeURIComponent(dist) +
+              '&street=' + encodeURIComponent(street);
+    fetch(url, { method: 'POST' }).then(function (r) {
+      return r.json();
+    }).then(function () {
+      if (navMsg) {
+        navMsg.textContent = 'Nav updated: ' + icon + ' in ' + dist;
+        navMsg.className = 'msg ok';
+        navMsg.style.display = 'block';
+        setTimeout(function () { navMsg.style.display = 'none'; }, 2000);
+      }
+    }).catch(function () {
+      if (navMsg) {
+        navMsg.textContent = 'Failed to send nav command';
+        navMsg.className = 'msg error';
+        navMsg.style.display = 'block';
+      }
+    });
+  }
+
+  for (var i = 0; i < quickBtns.length; i++) {
+    quickBtns[i].addEventListener('click', function () {
+      var icon = this.getAttribute('data-icon');
+      var dist = this.getAttribute('data-dist');
+      var street = this.getAttribute('data-street');
+      if (navSelectIcon) navSelectIcon.value = icon;
+      if (navInputDist) navInputDist.value = dist;
+      if (navInputStreet) navInputStreet.value = street;
+      sendNav(icon, dist, street);
+    });
+  }
+
+  if (btnNavSend) {
+    btnNavSend.addEventListener('click', function () {
+      var icon = navSelectIcon ? navSelectIcon.value : 'STRAIGHT';
+      var dist = navInputDist ? navInputDist.value : '250m';
+      var street = navInputStreet ? navInputStreet.value : 'Main St';
+      sendNav(icon, dist, street);
+    });
+  }
+
+  if (btnNavStop) {
+    btnNavStop.addEventListener('click', function () {
+      if (navStatusPill) {
+        navStatusPill.textContent = 'Idle';
+        navStatusPill.className = 'pill pill-status';
+      }
+      fetch('/api/nav?action=stop', { method: 'POST' }).then(function () {
+        if (navMsg) {
+          navMsg.textContent = 'Navigation stopped. Showing robot face.';
+          navMsg.className = 'msg ok';
+          navMsg.style.display = 'block';
+          setTimeout(function () { navMsg.style.display = 'none'; }, 2000);
+        }
+      });
+    });
+  }
+})();
+
 // Fetch and display storage info
 async function ls() {
   try {

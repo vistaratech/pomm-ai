@@ -1761,9 +1761,55 @@ function init(): void {
   initClockModule();
   initPhotoStudio();
   initConnectivityModal();
+  initNavModule();
 
   // 7. Initial render
   renderGrid();
+}
+
+function initNavModule(): void {
+  const quickBtns = document.querySelectorAll('.btn-web-nav-quick');
+  const selectIcon = document.getElementById('web-nav-select-icon') as HTMLSelectElement;
+  const inputDist = document.getElementById('web-nav-dist') as HTMLInputElement;
+  const inputStreet = document.getElementById('web-nav-street') as HTMLInputElement;
+  const btnSend = document.getElementById('btn-web-nav-send');
+  const btnStop = document.getElementById('btn-web-nav-stop');
+
+  async function sendNav(icon: string, dist: string, street: string) {
+    const cmd = `NAV:${icon}:${dist}:${street}`;
+    const ok = await sendCommand(cmd);
+    if (ok) {
+      showToast(`✓ Route sent to OLED: ${icon} in ${dist}`);
+      appendLog(`[Nav] → ${cmd}`);
+    } else {
+      showToast('⚠️ Failed to send route (Check connection)');
+    }
+  }
+
+  quickBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const icon = btn.getAttribute('data-icon') || 'STRAIGHT';
+      const dist = btn.getAttribute('data-dist') || '250m';
+      const street = btn.getAttribute('data-street') || 'Route';
+      if (selectIcon) selectIcon.value = icon;
+      if (inputDist) inputDist.value = dist;
+      if (inputStreet) inputStreet.value = street;
+      sendNav(icon, dist, street);
+    });
+  });
+
+  btnSend?.addEventListener('click', () => {
+    const icon = selectIcon?.value || 'STRAIGHT';
+    const dist = inputDist?.value || '250m';
+    const street = inputStreet?.value || 'Main St';
+    sendNav(icon, dist, street);
+  });
+
+  btnStop?.addEventListener('click', async () => {
+    await sendCommand('NAV:STOP');
+    showToast('✓ Navigation stopped. Switched to Buddy Face!');
+    appendLog('[Nav] Navigation stopped');
+  });
 }
 
 document.addEventListener('DOMContentLoaded', init);

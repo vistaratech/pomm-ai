@@ -240,6 +240,57 @@
     <div class="msg" id="timerMsg"></div>
   </div>
 
+  <div class="card" id="cardNav">
+    <div class="card-title card-title-row">
+      <span class="card-title-text">🏍️ Bike Buddy Navigation</span>
+      <span class="pill pill-status" id="navStatusPill">Idle</span>
+    </div>
+    <p style="font-size:0.8rem;color:var(--text-dim,#888);margin:0 0 10px 0">
+      Turn-by-turn road animation & directions on OLED. Test below or send from Google Maps over Bluetooth:
+    </p>
+    
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+      <button class="pill-btn btn-nav-quick" type="button" data-icon="LEFT" data-dist="150m" data-street="Anna Salai">⬅ Left 150m</button>
+      <button class="pill-btn btn-nav-quick" type="button" data-icon="STRAIGHT" data-dist="1.2km" data-street="GST Road">⬆ Straight 1.2km</button>
+      <button class="pill-btn btn-nav-quick" type="button" data-icon="RIGHT" data-dist="250m" data-street="100 Feet Rd">➔ Right 250m</button>
+      <button class="pill-btn btn-nav-quick" type="button" data-icon="RIGHT" data-dist="20m" data-street="Turn Now!">⚡ Now (20m)</button>
+      <button class="pill-btn btn-nav-quick" type="button" data-icon="UTURN" data-dist="50m" data-street="U-Turn Point">↶ U-Turn 50m</button>
+      <button class="pill-btn btn-nav-quick" type="button" data-icon="ROUNDABOUT" data-dist="200m" data-street="Rotary Exit 2">🔄 Rotary 200m</button>
+    </div>
+
+    <div class="setting">
+      <label class="setting-label">Maneuver</label>
+      <select id="navSelectIcon" class="input-text" style="padding:4px 8px;border-radius:6px;background:var(--bg,#111);color:var(--text,#fff)">
+        <option value="RIGHT">Turn Right (➔)</option>
+        <option value="LEFT">Turn Left (⬅)</option>
+        <option value="STRAIGHT">Continue Straight (⬆)</option>
+        <option value="SLIGHT_RIGHT">Slight Right (↗)</option>
+        <option value="SLIGHT_LEFT">Slight Left (↖)</option>
+        <option value="SHARP_RIGHT">Sharp Right</option>
+        <option value="SHARP_LEFT">Sharp Left</option>
+        <option value="UTURN">U-Turn (↶)</option>
+        <option value="ROUNDABOUT">Roundabout (🔄)</option>
+        <option value="ARRIVED">Arrived (🏁)</option>
+      </select>
+    </div>
+
+    <div class="setting">
+      <label class="setting-label">Distance</label>
+      <input type="text" id="navInputDist" class="input-text" placeholder="e.g. 250m, 1.5km" value="250m" style="width:110px">
+    </div>
+
+    <div class="setting">
+      <label class="setting-label">Street / Road</label>
+      <input type="text" id="navInputStreet" class="input-text" placeholder="e.g. Anna Salai" value="Anna Salai" style="flex:1">
+    </div>
+
+    <div class="device-actions">
+      <button class="btn btn-save" id="btnNavSend" type="button">Send to OLED</button>
+      <button class="btn btn-secondary" id="btnNavStop" type="button">Exit Nav (Face)</button>
+    </div>
+    <div class="msg" id="navMsg"></div>
+  </div>
+
   <div class="card collapsible collapsed">
     <div class="card-title">Settings</div>
     <div class="setting">

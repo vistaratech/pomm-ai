@@ -15,6 +15,7 @@
 #include "display_task.h"
 #include "time_manager.h"
 #include <LittleFS.h>
+#include <ArduinoJson.h>
 
 // Standard Nordic UART Service (NUS) UUIDs
 #define SERVICE_UUID           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
@@ -182,6 +183,58 @@ static void handleCommand(const String &cmd) {
     } else if (trimmed.equalsIgnoreCase("TIMER_STOP") || trimmed.equalsIgnoreCase("STOP_TIMER")) {
         displayCancelTimer();
         bleNotify("OK:TIMER_STOPPED");
+    } else if (trimmed.startsWith("NAV:") || trimmed.startsWith("NAV_") || trimmed.startsWith("MAPS:")) {
+        int prefixLen = trimmed.startsWith("NAV:") ? 4 : (trimmed.startsWith("MAPS:") ? 5 : 4);
+        String payload = trimmed.substring(prefixLen);
+        payload.trim();
+        if (payload.equalsIgnoreCase("STOP") || payload.equalsIgnoreCase("OFF") || payload.equalsIgnoreCase("EXIT")) {
+            displayStopNavigation();
+            bleNotify("OK:NAV_STOPPED");
+            Serial.println("[NAV] Navigation stopped. Switched to Robot Face.");
+        } else {
+            // Check if format is NAV:<ICON>:<DISTANCE>:<STREET>
+            int firstColon = payload.indexOf(':');
+            if (firstColon == -1) {
+                // Natural text single line, e.g. "Turn right in 250m on MG Road"
+                displayShowNavigationNatural("", payload);
+                bleNotify("OK:NAV");
+                Serial.printf("[NAV] Natural text update: %s\n", payload.c_str());
+            } else {
+                String icon = payload.substring(0, firstColon);
+                String dist = "";
+                String street = "";
+                int secondColon = payload.indexOf(':', firstColon + 1);
+                if (secondColon == -1) {
+                    dist = payload.substring(firstColon + 1);
+                } else {
+                    dist = payload.substring(firstColon + 1, secondColon);
+                    street = payload.substring(secondColon + 1);
+                }
+                icon.trim(); dist.trim(); street.trim();
+                displayShowNavigation(icon, dist, street);
+                bleNotify("OK:NAV:" + icon);
+                Serial.printf("[NAV] Update: Icon=%s, Dist=%s, Street=%s\n", icon.c_str(), dist.c_str(), street.c_str());
+            }
+        }
+    } else if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+        // JSON format (from companion app, web, or MacroDroid)
+        JsonDocument doc;
+        DeserializationError err = deserializeJson(doc, trimmed);
+        if (!err) {
+            if (doc.containsKey("nav") || doc.containsKey("directions") || doc.containsKey("turn") || doc.containsKey("icon")) {
+                String icon = doc["icon"] | doc["turn"] | "STRAIGHT";
+                String dist = doc["dist"] | doc["distance"] | "";
+                String street = doc["street"] | doc["title"] | doc["road"] | "";
+                String directions = doc["directions"] | "";
+                if (directions.length() > 0 && dist.length() == 0) {
+                    displayShowNavigationNatural(street, directions);
+                } else {
+                    displayShowNavigation(icon, dist, street);
+                }
+                bleNotify("OK:NAV_JSON");
+                Serial.println("[NAV] JSON payload handled successfully");
+            }
+        }
     } else if (trimmed.equalsIgnoreCase("PING")) {
         bleNotify("PONG:PommAI");
     } else if (trimmed.equalsIgnoreCase("INFO")) {

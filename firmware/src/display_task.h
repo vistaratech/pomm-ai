@@ -29,6 +29,18 @@ void displayStartTimer(uint32_t seconds);
 // Cancel running timer
 void displayCancelTimer();
 
+// Show navigation screen on OLED with road animation & maneuver
+void displayShowNavigation(const String &icon, const String &distance, const String &street);
+
+// Natural text navigation (from Google Maps notification title + text)
+void displayShowNavigationNatural(const String &title, const String &text);
+
+// Stop navigation screen and return to robot face
+void displayStopNavigation();
+
+// Check if navigation is active
+bool displayIsNavigating();
+
 // Get current display state
 DisplayState getDisplayState();
 
