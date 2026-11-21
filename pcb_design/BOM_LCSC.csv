@@ -1,0 +1,23 @@
+Component,Designator,Footprint,Quantity,LCSC Part #,Description
+ESP32-C3 Super Mini,U1,Header-1x8P-2.54mm x2,1,C2883,Female Header Sockets for ESP32-C3 Super Mini
+0.96 OLED Display Socket,J1,Header-1x4P-2.54mm,1,C2241,Female Header for 4-pin I2C OLED (GND VCC SCL SDA)
+TTP223 Touch Sensor Header,J2,Header-1x3P-2.54mm,1,C2240,Header for TTP223 Module (VCC GND SIG)
+5V Relay (10A 250VAC),K1 K2,RELAY-TH_SRD-05VDC-SL-C,2,C39744,Songle SRD-05VDC-SL-C 5V Relay
+Screw Terminal 3-Pin (5.08mm),TB1 TB2,CONN-TH_KF301-3P-5.08,2,C475013,Mains AC Screw Terminals (NO COM NC)
+Optocoupler,U2 U3,SOP-4_PC817,2,C38114,PC817 Optocoupler Isolation
+NPN Transistor,Q1 Q2,SOT-23_S8050,2,C2146,S8050 NPN Transistor (Relay Coil Driver)
+Buzzer Driver Transistor,Q3,SOT-23_S8050,1,C2146,S8050 NPN Transistor (Buzzer Driver)
+Passive Piezo Buzzer,BZ1,BUZZER-TH_D9.0-H5.5,1,C96656,5V/3V Passive Buzzer 9mm
+Flyback Diode,D1 D2 D3,SOD-123_1N4148W,3,C81598,1N4148 Fast Switching Protection Diode
+Reverse Protection Diode,D4,SMA_SS34,1,C8678,SS34 3A 40V Schottky Barrier Diode
+Voltage Regulator 3.3V,U4,SOT-223_AMS1117-3.3,1,C6186,AMS1117-3.3V LDO Voltage Regulator (1A)
+USB Type-C Receptacle,J3,USB-C-SMD_TYPE-C-16P,1,C165948,USB-C 16-Pin Power Connector
+Relay 1 Status LED (Blue),LED1,LED_0805_BLUE,1,C2290,0805 SMD Blue LED
+Relay 2 Status LED (Green),LED2,LED_0805_GREEN,1,C2293,0805 SMD Green LED
+Power Indicator LED (Red),LED3,LED_0805_RED,1,C2286,0805 SMD Red LED
+Resistor 1k (0805),R1 R2 R3 R4 R5 R6 R7,R_0805,7,C17513,1k Ohm 1% 0805 SMD Resistor
+Resistor 5.1k (0805),R8 R9,R_0805,2,C23186,5.1k Ohm CC Pulldown for USB-C
+Resistor 4.7k (0805),R10 R11,R_0805,2,C25900,4.7k Ohm I2C Pullups for SDA/SCL
+Capacitor 100nF (0805),C1 C2 C3,C_0805,3,C49678,0.1uF 50V Ceramic Decoupling Capacitor
+Capacitor 10uF (0805),C4 C5,C_0805,2,C15849,10uF 16V Ceramic Filter Capacitor
+Capacitor 100uF (SMD),C6 C7,CAP-SMD_D6.3-L5.4,2,C134710,100uF 16V Bulk Electrolytic Capacitor
