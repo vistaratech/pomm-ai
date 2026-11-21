@@ -291,16 +291,23 @@ static const uint8_t icon_setting_bits[] PROGMEM = {
     0x11, 0x88, 0x13, 0xC8, 0x24, 0x24, 0xC4, 0x23,
     0x02, 0x40, 0x34, 0x2C, 0x48, 0x12, 0xC0, 0x03
 };
+static const uint8_t icon_smarthome_bits[] PROGMEM = {
+    0x00, 0x00, 0x80, 0x01, 0xC0, 0x03, 0xE0, 0x07,
+    0xF0, 0x0F, 0xF8, 0x1F, 0xFC, 0x3F, 0xFE, 0x7F,
+    0x06, 0x60, 0x26, 0x64, 0x26, 0x64, 0x06, 0x60,
+    0x1E, 0x78, 0x1E, 0x78, 0xFF, 0xFF, 0x00, 0x00
+};
 
 static void drawSettingsMenu() {
     if (_state == SETTINGS_MENU) {
-        // 4 items: WEATHER(0), TIMER(1), GAME LIBRARY(2), SETTING(3)
+        // 5 items: WEATHER(0), TIMER(1), GAME LIBRARY(2), SMART HOME(3), SETTING(4)
         // Display 3 rows at a time; scroll window follows cursor.
-        static const char *labels[4] = { "WEATHER", "TIMER", "GAME LIBRARY", "SETTING" };
-        static const uint8_t *icon_bits[4] = {
+        static const char *labels[5] = { "WEATHER", "TIMER", "GAME LIBRARY", "SMART HOME", "SETTING" };
+        static const uint8_t *icon_bits[5] = {
             icon_weather_bits,
             icon_timer_bits,
             icon_game_bits,
+            icon_smarthome_bits,
             icon_setting_bits
         };
         // Scroll window: show 3 rows, keep cursor visible
@@ -309,7 +316,7 @@ static void drawSettingsMenu() {
         u8g2.setFont(u8g2_font_7x14B_tr);
         for (uint8_t row = 0; row < 3; row++) {
             uint8_t item = top + row;
-            if (item >= 4) break;
+            if (item >= 5) break;
             uint8_t y = (row + 1) * SETTINGS_ROW_H;
             bool isSelected = (item == _settingsCursor);
             if (isSelected) {
@@ -420,6 +427,51 @@ static void enterSettingsMenu() {
                             getTimeFormat24h() };
     enterState(SETTINGS_MENU);
     drawSettingsMenu();
+}
+
+static uint8_t _smartHomeCursor = 0;
+
+static void drawSmartHomeMenu() {
+    u8g2.clearBuffer();
+
+    // Header
+    u8g2.setFont(u8g2_font_6x13_tr);
+    const char *title = "[ SMART HOME ]";
+    u8g2.drawStr((128 - (int16_t)u8g2.getStrWidth(title)) / 2, 12, title);
+    u8g2.drawHLine(2, 14, 124);
+
+    char r1Buf[24];
+    char r2Buf[24];
+    char modeBuf[24];
+
+    snprintf(r1Buf, sizeof(r1Buf), "R1 Light: %s", homeRelayGet(0) ? "ON " : "OFF");
+    snprintf(r2Buf, sizeof(r2Buf), "R2 Fan:   %s", homeRelayGet(1) ? "ON " : "OFF");
+    snprintf(modeBuf, sizeof(modeBuf), "Mode:    %s", (systemModeGet() == SYS_MODE_CAR) ? "RC CAR" : "HOME");
+    const char *labels[4] = { r1Buf, r2Buf, modeBuf, "[ BACK ]" };
+
+    u8g2.setFont(u8g2_font_6x12_tr);
+    for (uint8_t i = 0; i < 4; i++) {
+        uint8_t y = 26 + (i * 12);
+        bool isSelected = (i == _smartHomeCursor);
+        if (isSelected) {
+            u8g2.setDrawColor(1);
+            u8g2.drawBox(2, y - 9, 124, 11);
+            u8g2.setDrawColor(0);
+        } else {
+            u8g2.setDrawColor(1);
+        }
+        u8g2.drawStr(8, y, labels[i]);
+    }
+
+    u8g2.setDrawColor(1);
+    rotateBuffer180();
+    u8g2.sendBuffer();
+}
+
+static void enterSmartHomeMenu() {
+    _smartHomeCursor = 0;
+    enterState(SMART_HOME_MENU);
+    drawSmartHomeMenu();
 }
 
 static void drawContributeScreen() {
@@ -783,7 +835,7 @@ void displayTask(void *param) {
                             if (systemModeGet() == SYS_MODE_CAR) {
                                 carStop();
                             } else {
-                                homeRelayToggle(0); // Relay 1 (Light)
+                                displayShowClock(20000);
                             }
                             break;
                         case LONG_PRESS:
@@ -792,7 +844,7 @@ void displayTask(void *param) {
                                 vTaskDelay(pdMS_TO_TICKS(200));
                                 carHorn(false);
                             } else {
-                                homeRelayToggle(1); // Relay 2 (Fan)
+                                enterSettingsMenu();
                             }
                             break;
                         default:
@@ -854,7 +906,7 @@ void displayTask(void *param) {
                 case SETTINGS_MENU:
                     _stateEntryMs = now;
                     if (gesture.type == SINGLE_TAP) {
-                        _settingsCursor = (_settingsCursor + 1) % 4;
+                        _settingsCursor = (_settingsCursor + 1) % 5;
                         drawSettingsMenu();
                     } else if (gesture.type == DOUBLE_TAP) {
                         enterState(GIF_PLAYBACK);
@@ -873,11 +925,35 @@ void displayTask(void *param) {
                             gameMenuEnter();
                             enterState(GAME_MENU);
                             gameMenuDraw();
+                        } else if (_settingsCursor == 3) {
+                            // SMART HOME
+                            enterSmartHomeMenu();
                         } else {
                             // SETTING
                             _settingsCursor = 0;
                             enterState(SETTINGS_OPTIONS);
                             drawSettingsMenu();
+                        }
+                    }
+                    break;
+
+                case SMART_HOME_MENU:
+                    _stateEntryMs = now;
+                    if (gesture.type == SINGLE_TAP) {
+                        _smartHomeCursor = (_smartHomeCursor + 1) % 4;
+                        drawSmartHomeMenu();
+                    } else if (gesture.type == DOUBLE_TAP || gesture.type == LONG_PRESS) {
+                        if (_smartHomeCursor == 0) {
+                            homeRelayToggle(0);
+                            drawSmartHomeMenu();
+                        } else if (_smartHomeCursor == 1) {
+                            homeRelayToggle(1);
+                            drawSmartHomeMenu();
+                        } else if (_smartHomeCursor == 2) {
+                            systemModeSet(systemModeGet() == SYS_MODE_HOME ? SYS_MODE_CAR : SYS_MODE_HOME);
+                            drawSmartHomeMenu();
+                        } else {
+                            enterSettingsMenu();
                         }
                     }
                     break;
@@ -1348,6 +1424,7 @@ void displayTask(void *param) {
 
             case SETTINGS_MENU:
             case SETTINGS_OPTIONS:
+            case SMART_HOME_MENU:
                 if (elapsed >= SETTINGS_MENU_IDLE_MS) {
                     enterState(GIF_PLAYBACK);
                 }
