@@ -21,6 +21,7 @@
 #include "input_task.h"
 #include "ble_task.h"
 #include "home_relay.h"
+#include "dual_control_html.h"
 
 #include "gif_types.h"
 #include "sys_idle.h"
@@ -44,7 +45,7 @@ void setup() {
     settingsInit();
     pinMode(getPinTouch(), INPUT);
     pinMode(getPinBuzzer(), OUTPUT);
-    homeRelayInit();
+    systemModeInit();
 
     // 2. Display (reconstruct U8G2 with NVS pins)
     Wire.begin(getPinSDA(), getPinSCL());
@@ -129,7 +130,32 @@ void setup() {
         }
     );
 
-    // 9.5. Smart Home Relay endpoints
+    // 9.5. Dual Mode (Smart Home Relay & RC Car) endpoints
+    server.on("/control", HTTP_GET, [](AsyncWebServerRequest *request) {
+        request->send_P(200, "text/html", DUAL_CONTROL_HTML);
+    });
+    server.on("/rc", HTTP_GET, [](AsyncWebServerRequest *request) {
+        request->send_P(200, "text/html", DUAL_CONTROL_HTML);
+    });
+
+    server.on("/api/mode", HTTP_GET, [](AsyncWebServerRequest *request) {
+        String json = "{\"mode\":\"" + String(systemModeGetName()) + "\"}";
+        request->send(200, "application/json", json);
+    });
+    server.on("/api/mode/set", HTTP_POST, [](AsyncWebServerRequest *request) {
+        if (request->hasParam("m")) {
+            String m = request->getParam("m")->value();
+            m.toLowerCase();
+            if (m == "car" || m == "rc") {
+                systemModeSet(SYS_MODE_CAR);
+            } else {
+                systemModeSet(SYS_MODE_HOME);
+            }
+        }
+        String json = "{\"status\":\"ok\",\"mode\":\"" + String(systemModeGetName()) + "\"}";
+        request->send(200, "application/json", json);
+    });
+
     server.on("/api/relay", HTTP_GET, [](AsyncWebServerRequest *request) {
         String json = "{\"r1\":" + String(homeRelayGet(0) ? "true" : "false") +
                       ",\"r2\":" + String(homeRelayGet(1) ? "true" : "false") + "}";
@@ -145,6 +171,38 @@ void setup() {
         String json = "{\"status\":\"ok\",\"r1\":" + String(homeRelayGet(0) ? "true" : "false") +
                       ",\"r2\":" + String(homeRelayGet(1) ? "true" : "false") + "}";
         request->send(200, "application/json", json);
+    });
+    server.on("/api/relay/set", HTTP_POST, [](AsyncWebServerRequest *request) {
+        if (request->hasParam("ch") && request->hasParam("on")) {
+            int ch = request->getParam("ch")->value().toInt() - 1;
+            bool on = (request->getParam("on")->value() == "1" || request->getParam("on")->value() == "true");
+            if (ch >= 0 && ch < NUM_RELAYS) {
+                homeRelaySet((uint8_t)ch, on);
+            }
+        }
+        String json = "{\"status\":\"ok\",\"r1\":" + String(homeRelayGet(0) ? "true" : "false") +
+                      ",\"r2\":" + String(homeRelayGet(1) ? "true" : "false") + "}";
+        request->send(200, "application/json", json);
+    });
+
+    // RC Car Motor API
+    server.on("/api/car/cmd", HTTP_ANY, [](AsyncWebServerRequest *request) {
+        String dir = request->hasParam("d") ? request->getParam("d")->value() : "S";
+        int spd = request->hasParam("s") ? request->getParam("s")->value().toInt() : carGetSpeed();
+        carCommand(dir, spd);
+        request->send(200, "application/json", "{\"status\":\"ok\"}");
+    });
+    server.on("/api/car/stop", HTTP_ANY, [](AsyncWebServerRequest *request) {
+        carStop();
+        request->send(200, "application/json", "{\"status\":\"ok\",\"stopped\":true}");
+    });
+    server.on("/api/car/horn", HTTP_ANY, [](AsyncWebServerRequest *request) {
+        bool on = true;
+        if (request->hasParam("on")) {
+            on = (request->getParam("on")->value() == "1" || request->getParam("on")->value() == "true");
+        }
+        carHorn(on);
+        request->send(200, "application/json", "{\"status\":\"ok\",\"horn\":" + String(on ? "true" : "false") + "}");
     });
 
     server.begin();

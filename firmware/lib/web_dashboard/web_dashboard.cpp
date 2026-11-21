@@ -6,6 +6,7 @@
 #include "../../src/display_task.h"
 #include "../../src/timer_ui.h"
 #include "../../src/ble_task.h"
+#include "../../src/dual_control_html.h"
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
@@ -80,7 +81,11 @@ static void serveFile(AsyncWebServerRequest *request,
 // ==========================================================================
 
 static void handleRoot(AsyncWebServerRequest *request) {
-    serveFile(request, "/index.html", "text/html");
+    if (LittleFS.exists("/index.html")) {
+        request->send(LittleFS, "/index.html", "text/html");
+    } else {
+        request->send_P(200, "text/html", DUAL_CONTROL_HTML);
+    }
 }
 
 static void handleCSS(AsyncWebServerRequest *request) {

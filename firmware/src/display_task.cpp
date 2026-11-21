@@ -780,10 +780,20 @@ void displayTask(void *param) {
                             break;
                         }
                         case DOUBLE_TAP:
-                            homeRelayToggle(0); // Relay 1 (Light)
+                            if (systemModeGet() == SYS_MODE_CAR) {
+                                carStop();
+                            } else {
+                                homeRelayToggle(0); // Relay 1 (Light)
+                            }
                             break;
                         case LONG_PRESS:
-                            homeRelayToggle(1); // Relay 2 (Fan)
+                            if (systemModeGet() == SYS_MODE_CAR) {
+                                carHorn(true);
+                                vTaskDelay(pdMS_TO_TICKS(200));
+                                carHorn(false);
+                            } else {
+                                homeRelayToggle(1); // Relay 2 (Fan)
+                            }
                             break;
                         default:
                             break;

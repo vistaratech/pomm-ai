@@ -302,10 +302,10 @@ class RxCallbacks : public BLECharacteristicCallbacks {
 
 class LumoRxCallbacks : public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pChar) override {
-        String val = pChar->getValue().c_str();
-        if (val.length() > 0) {
-            Serial.printf("[BLE-LUMO] Received: %s\n", val.c_str());
-            homeRelayProcessCommand(val);
+        size_t len = pChar->getLength();
+        const uint8_t *data = pChar->getData();
+        if (len > 0 && data != nullptr) {
+            homeRelayProcessBinary(data, len);
             String status = homeRelayGetStatusString();
             pChar->setValue((uint8_t *)status.c_str(), status.length());
             pChar->notify();

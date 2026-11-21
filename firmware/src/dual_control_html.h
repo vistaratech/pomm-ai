@@ -1,0 +1,425 @@
+#pragma once
+#include <Arduino.h>
+
+const char DUAL_CONTROL_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>YUYK All-in-One Controller</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{
+  height:100%;width:100%;overflow-x:hidden;
+  touch-action:manipulation;user-select:none;-webkit-user-select:none;
+  background:#090b10;color:#e2e8f0;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+}
+body::before{
+  content:'';position:fixed;inset:0;
+  background:radial-gradient(circle at 50% 0%,rgba(0,212,255,0.08) 0%,transparent 60%),
+             radial-gradient(circle at 50% 100%,rgba(168,85,247,0.06) 0%,transparent 50%);
+  pointer-events:none;z-index:0;
+}
+.app{max-width:480px;margin:0 auto;padding:16px;min-height:100%;display:flex;flex-direction:column;gap:14px;position:relative;z-index:1;}
+
+/* Header */
+.header{display:flex;align-items:center;justify-content:space-between;padding-bottom:6px;border-bottom:1px solid #1e293b;}
+.brand{display:flex;align-items:center;gap:10px;}
+.brand-icon{font-size:26px;animation:float 3s ease-in-out infinite;}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+.brand h1{font-size:1.25rem;font-weight:800;letter-spacing:1px;background:linear-gradient(135deg,#00d4ff,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.brand .sub{font-size:0.65rem;color:#64748b;letter-spacing:1.5px;text-transform:uppercase;}
+.conn-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:#1e293b;font-size:0.75rem;cursor:pointer;border:1px solid #334155;transition:all .2s;}
+.conn-pill:hover{border-color:#00d4ff;}
+.conn-dot{width:8px;height:8px;border-radius:50%;background:#ef4444;box-shadow:0 0 6px #ef4444;}
+.conn-dot.online{background:#10b981;box-shadow:0 0 8px #10b981;animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+
+/* Pin Info Banner */
+.pin-banner{background:#0f172a;border:1px dashed #334155;border-radius:8px;padding:8px 12px;font-size:0.72rem;color:#94a3b8;display:flex;justify-content:space-between;}
+.pin-banner strong{color:#38bdf8;}
+
+/* Mode Tabs */
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;background:#0f172a;padding:5px;border-radius:12px;border:1px solid #1e293b;}
+.tab-btn{border:none;outline:none;background:transparent;color:#94a3b8;padding:10px 8px;border-radius:8px;font-weight:700;font-size:0.85rem;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:all .2s;}
+.tab-btn.active{background:linear-gradient(135deg,rgba(0,212,255,0.2),rgba(168,85,247,0.2));color:#38bdf8;border:1px solid rgba(56,189,248,0.4);box-shadow:0 0 12px rgba(0,212,255,0.2);}
+
+/* Panels */
+.panel{display:none;flex-direction:column;gap:14px;}
+.panel.active{display:flex;}
+
+/* Home Mode Cards */
+.relay-card{background:#0f172a;border:1px solid #1e293b;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px;transition:all .25s;}
+.relay-card.on{border-color:#38bdf8;box-shadow:0 0 16px rgba(56,189,248,0.25);}
+.relay-header{display:flex;justify-content:space-between;align-items:center;}
+.relay-title{display:flex;align-items:center;gap:10px;font-size:1.05rem;font-weight:700;}
+.relay-state{padding:3px 8px;border-radius:6px;font-size:0.7rem;font-weight:800;letter-spacing:1px;background:#334155;color:#94a3b8;}
+.relay-card.on .relay-state{background:#0284c7;color:#fff;}
+.relay-toggle-btn{border:none;outline:none;cursor:pointer;padding:14px;border-radius:10px;font-size:0.95rem;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .2s;background:#1e293b;color:#e2e8f0;border:1px solid #334155;}
+.relay-card.on .relay-toggle-btn{background:linear-gradient(135deg,#0284c7,#0369a1);color:#fff;border-color:#38bdf8;box-shadow:0 0 12px rgba(2,132,199,0.5);}
+.timer-row{display:flex;gap:6px;align-items:center;}
+.timer-btn{flex:1;border:none;background:#1e293b;color:#94a3b8;padding:6px;font-size:0.72rem;border-radius:6px;cursor:pointer;transition:background .2s;}
+.timer-btn:hover{background:#334155;color:#f8fafc;}
+
+/* RC Car Panel */
+.car-dash{background:#0f172a;border:1px solid #1e293b;border-radius:14px;padding:12px;display:flex;justify-content:space-between;align-items:center;}
+.car-metric{display:flex;flex-direction:column;gap:2px;}
+.metric-lbl{font-size:0.65rem;text-transform:uppercase;color:#64748b;letter-spacing:1px;}
+.metric-val{font-size:1.1rem;font-weight:800;color:#38bdf8;}
+
+/* D-Pad Controls */
+.dpad-container{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 0;}
+.dpad{display:grid;grid-template-columns:repeat(3,76px);grid-template-rows:repeat(3,76px);gap:8px;}
+.d-btn{border:none;outline:none;background:#131d2e;color:#cbd5e1;border-radius:16px;border:1px solid #22324c;display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer;touch-action:none;transition:all .1s;box-shadow:0 4px 6px rgba(0,0,0,0.3);}
+.d-btn:active,.d-btn.pressed{background:linear-gradient(135deg,#00d4ff,#2563eb);color:#fff;border-color:#38bdf8;box-shadow:0 0 16px rgba(0,212,255,0.6);transform:scale(0.95);}
+.d-btn.stop{background:#1e293b;border-color:#ef4444;color:#ef4444;font-size:18px;font-weight:800;}
+.d-btn.stop:active,.d-btn.stop.pressed{background:#ef4444;color:#fff;box-shadow:0 0 16px #ef4444;}
+.d-btn.diag{font-size:16px;color:#64748b;}
+
+/* Sliders & Action Buttons */
+.slider-group{background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;}
+.slider-top{display:flex;justify-content:space-between;font-size:0.75rem;color:#94a3b8;font-weight:600;}
+input[type=range]{width:100%;accent-color:#00d4ff;cursor:pointer;height:6px;}
+
+.action-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.act-btn{border:none;outline:none;padding:14px;border-radius:12px;font-size:0.9rem;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;touch-action:none;transition:all .15s;}
+.act-horn{background:#7f1d1d;color:#fecaca;border:1px solid #ef4444;}
+.act-horn:active,.act-horn.pressed{background:#ef4444;color:#fff;box-shadow:0 0 18px rgba(239,68,68,0.8);transform:scale(0.97);}
+.act-estop{background:#1e293b;color:#f87171;border:1px solid #7f1d1d;}
+.act-estop:active{background:#b91c1c;color:#fff;}
+
+/* Footer */
+.footer{margin-top:auto;padding-top:12px;text-align:center;font-size:0.65rem;color:#475569;}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Header -->
+  <div class="header">
+    <div class="brand">
+      <div class="brand-icon">🤖</div>
+      <div>
+        <h1>YUYK DUAL</h1>
+        <div class="sub">Relay & RC Car Controller</div>
+      </div>
+    </div>
+    <div class="conn-pill" id="connPill" onclick="handleConnClick()">
+      <div class="conn-dot online" id="connDot"></div>
+      <span id="connLabel">Wi-Fi Active</span>
+    </div>
+  </div>
+
+  <!-- Shared Pin Notification -->
+  <div class="pin-banner">
+    <div><strong>GPIO 7:</strong> <span id="pin7Label">Relay 1 (Light)</span></div>
+    <div><strong>GPIO 10:</strong> <span id="pin10Label">Relay 2 (Fan)</span></div>
+  </div>
+
+  <!-- Mode Switcher -->
+  <div class="tabs">
+    <button class="tab-btn active" id="tabHome" onclick="switchMode('home')">🏠 Smart Home</button>
+    <button class="tab-btn" id="tabCar" onclick="switchMode('car')">🏎️ RC Car</button>
+  </div>
+
+  <!-- HOME PANEL -->
+  <div class="panel active" id="panelHome">
+    <!-- Relay 1 -->
+    <div class="relay-card" id="cardR1">
+      <div class="relay-header">
+        <div class="relay-title">💡 Relay 1 (GPIO 7)</div>
+        <div class="relay-state" id="badgeR1">OFF</div>
+      </div>
+      <button class="relay-toggle-btn" onclick="toggleRelay(1)">Toggle Switch 1</button>
+      <div class="timer-row">
+        <button class="timer-btn" onclick="setTimer(1,900)">15m</button>
+        <button class="timer-btn" onclick="setTimer(1,1800)">30m</button>
+        <button class="timer-btn" onclick="setTimer(1,3600)">1h</button>
+        <button class="timer-btn" onclick="toggleRelay(1,false)">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Relay 2 -->
+    <div class="relay-card" id="cardR2">
+      <div class="relay-header">
+        <div class="relay-title">🌀 Relay 2 (GPIO 10)</div>
+        <div class="relay-state" id="badgeR2">OFF</div>
+      </div>
+      <button class="relay-toggle-btn" onclick="toggleRelay(2)">Toggle Switch 2</button>
+      <div class="timer-row">
+        <button class="timer-btn" onclick="setTimer(2,900)">15m</button>
+        <button class="timer-btn" onclick="setTimer(2,1800)">30m</button>
+        <button class="timer-btn" onclick="setTimer(2,3600)">1h</button>
+        <button class="timer-btn" onclick="toggleRelay(2,false)">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RC CAR PANEL -->
+  <div class="panel" id="panelCar">
+    <!-- Telemetry Dash -->
+    <div class="car-dash">
+      <div class="car-metric">
+        <div class="metric-lbl">Direction</div>
+        <div class="metric-val" id="dispDir">STOP</div>
+      </div>
+      <div class="car-metric">
+        <div class="metric-lbl">Speed</div>
+        <div class="metric-val" id="dispSpd">78%</div>
+      </div>
+      <div class="car-metric">
+        <div class="metric-lbl">Horn (GPIO 2)</div>
+        <div class="metric-val" id="dispHorn">IDLE</div>
+      </div>
+    </div>
+
+    <!-- Directional D-Pad -->
+    <div class="dpad-container">
+      <div class="dpad">
+        <button class="d-btn diag" data-dir="FL">◤</button>
+        <button class="d-btn" data-dir="F">▲</button>
+        <button class="d-btn diag" data-dir="FR">◥</button>
+
+        <button class="d-btn" data-dir="L">◀</button>
+        <button class="d-btn stop" data-dir="S">STOP</button>
+        <button class="d-btn" data-dir="R">▶</button>
+
+        <button class="d-btn diag" data-dir="BL">◣</button>
+        <button class="d-btn" data-dir="B">▼</button>
+        <button class="d-btn diag" data-dir="BR">◢</button>
+      </div>
+    </div>
+
+    <!-- Speed Slider -->
+    <div class="slider-group">
+      <div class="slider-top">
+        <span>MOTOR SPEED LIMIT</span>
+        <span id="speedValue">200 / 255</span>
+      </div>
+      <input type="range" id="speedSlider" min="50" max="255" value="200" oninput="updateSpeed(this.value)">
+    </div>
+
+    <!-- Actions -->
+    <div class="action-row">
+      <button class="act-btn act-horn" id="hornBtn">📢 HORN</button>
+      <button class="act-btn act-estop" onclick="eStop()">🚨 E-BRAKE</button>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    ESP32-C3 Super Mini • I2C OLED • Dual Relays / Continuous Motors • TTP223
+  </div>
+</div>
+
+<script>
+let currentMode = 'home';
+let currentSpeed = 200;
+let bleDevice = null;
+let bleChar = null;
+let activeDir = 'S';
+const LUMO_SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
+const LUMO_CHAR_UUID    = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
+
+function switchMode(mode) {
+  currentMode = mode;
+  document.getElementById('tabHome').classList.toggle('active', mode === 'home');
+  document.getElementById('tabCar').classList.toggle('active', mode === 'car');
+  document.getElementById('panelHome').classList.toggle('active', mode === 'home');
+  document.getElementById('panelCar').classList.toggle('active', mode === 'car');
+
+  const p7 = document.getElementById('pin7Label');
+  const p10 = document.getElementById('pin10Label');
+  if (mode === 'home') {
+    p7.innerText = 'Relay 1 (Light)';
+    p10.innerText = 'Relay 2 (Fan)';
+    sendCmd('MODE:HOME', '/api/mode/set?m=home');
+  } else {
+    p7.innerText = 'Left Motor (PWM)';
+    p10.innerText = 'Right Motor (PWM)';
+    sendCmd('MODE:CAR', '/api/mode/set?m=car');
+  }
+}
+
+async function sendCmd(bleText, httpUrl, method = 'POST') {
+  if (bleChar) {
+    try {
+      const enc = new TextEncoder();
+      await bleChar.writeValue(enc.encode(bleText));
+      return;
+    } catch (e) {
+      console.warn('BLE send failed, fallback to HTTP', e);
+    }
+  }
+  if (httpUrl) {
+    try {
+      await fetch(httpUrl, { method });
+    } catch (err) {
+      console.log('HTTP fetch:', err);
+    }
+  }
+}
+
+// Relay control
+async function toggleRelay(ch, explicitState) {
+  const url = (explicitState !== undefined) 
+    ? `/api/relay/set?ch=${ch}&on=${explicitState ? 1 : 0}`
+    : `/api/relay/toggle?ch=${ch}`;
+  await sendCmd(`R${ch}`, url);
+  syncRelays();
+}
+
+async function setTimer(ch, sec) {
+  await sendCmd(`TIMER:${ch}:${sec}`, `/api/relay/set?ch=${ch}&on=1`);
+  syncRelays();
+}
+
+async function syncRelays() {
+  try {
+    const res = await fetch('/api/relay');
+    if (!res.ok) return;
+    const data = await res.json();
+    updateRelayUI(1, data.r1);
+    updateRelayUI(2, data.r2);
+  } catch(e){}
+}
+
+function updateRelayUI(ch, state) {
+  const card = document.getElementById('cardR' + ch);
+  const badge = document.getElementById('badgeR' + ch);
+  if (card && badge) {
+    card.classList.toggle('on', !!state);
+    badge.innerText = state ? 'ON' : 'OFF';
+  }
+}
+
+// RC Car Controls
+function updateSpeed(val) {
+  currentSpeed = parseInt(val);
+  document.getElementById('speedValue').innerText = `${val} / 255`;
+  document.getElementById('dispSpd').innerText = `${Math.round((val/255)*100)}%`;
+}
+
+function setCarMove(dir) {
+  activeDir = dir;
+  document.getElementById('dispDir').innerText = dir;
+  const bleMsg = (dir === 'S') ? 'S' : `CAR:${dir}:${currentSpeed}`;
+  const url = (dir === 'S') ? '/api/car/stop' : `/api/car/cmd?d=${dir}&s=${currentSpeed}`;
+  sendCmd(bleMsg, url);
+}
+
+function eStop() {
+  setCarMove('S');
+}
+
+// Bind D-Pad touch & mouse
+document.querySelectorAll('.d-btn').forEach(btn => {
+  const dir = btn.dataset.dir;
+  const start = (e) => {
+    e.preventDefault();
+    btn.classList.add('pressed');
+    setCarMove(dir);
+  };
+  const end = (e) => {
+    e.preventDefault();
+    btn.classList.remove('pressed');
+    if (dir !== 'S') setCarMove('S');
+  };
+
+  btn.addEventListener('touchstart', start, { passive: false });
+  btn.addEventListener('touchend', end, { passive: false });
+  btn.addEventListener('mousedown', start);
+  btn.addEventListener('mouseup', end);
+  btn.addEventListener('mouseleave', () => {
+    if (btn.classList.contains('pressed')) {
+      btn.classList.remove('pressed');
+      setCarMove('S');
+    }
+  });
+});
+
+// Horn Button
+const hornBtn = document.getElementById('hornBtn');
+const hornDisp = document.getElementById('dispHorn');
+const hornStart = (e) => {
+  e.preventDefault();
+  hornBtn.classList.add('pressed');
+  hornDisp.innerText = 'BLARING!';
+  hornDisp.style.color = '#ef4444';
+  sendCmd('HORN:1', '/api/car/horn?on=1');
+};
+const hornEnd = (e) => {
+  e.preventDefault();
+  hornBtn.classList.remove('pressed');
+  hornDisp.innerText = 'IDLE';
+  hornDisp.style.color = '#38bdf8';
+  sendCmd('HORN:0', '/api/car/horn?on=0');
+};
+hornBtn.addEventListener('touchstart', hornStart, { passive: false });
+hornBtn.addEventListener('touchend', hornEnd, { passive: false });
+hornBtn.addEventListener('mousedown', hornStart);
+hornBtn.addEventListener('mouseup', hornEnd);
+hornBtn.addEventListener('mouseleave', () => {
+  if (hornBtn.classList.contains('pressed')) hornEnd(new Event('mouseleave'));
+});
+
+// Keyboard controls for RC Car
+window.addEventListener('keydown', (e) => {
+  if (e.repeat) return;
+  if (currentMode !== 'car') return;
+  const k = e.key.toUpperCase();
+  if (k === 'ARROWUP' || k === 'W') setCarMove('F');
+  else if (k === 'ARROWDOWN' || k === 'S') setCarMove('B');
+  else if (k === 'ARROWLEFT' || k === 'A') setCarMove('L');
+  else if (k === 'ARROWRIGHT' || k === 'D') setCarMove('R');
+  else if (k === ' ' || k === 'ESCAPE') setCarMove('S');
+  else if (k === 'H') hornStart(e);
+});
+window.addEventListener('keyup', (e) => {
+  if (currentMode !== 'car') return;
+  const k = e.key.toUpperCase();
+  if (['ARROWUP','ARROWDOWN','ARROWLEFT','ARROWRIGHT','W','A','S','D'].includes(k)) {
+    setCarMove('S');
+  } else if (k === 'H') {
+    hornEnd(e);
+  }
+});
+
+// Web Bluetooth Connect
+async function handleConnClick() {
+  if (!navigator.bluetooth) {
+    alert('Web Bluetooth is supported on Chrome (Android, Windows, Mac, Linux). Wi-Fi connection is currently active.');
+    return;
+  }
+  try {
+    document.getElementById('connLabel').innerText = 'Scanning...';
+    bleDevice = await navigator.bluetooth.requestDevice({
+      filters: [{ namePrefix: 'YUYK' }, { namePrefix: 'PommAI' }, { namePrefix: 'RC-Car' }],
+      optionalServices: [LUMO_SERVICE_UUID]
+    });
+    const server = await bleDevice.gatt.connect();
+    const service = await server.getPrimaryService(LUMO_SERVICE_UUID);
+    bleChar = await service.getCharacteristic(LUMO_CHAR_UUID);
+
+    document.getElementById('connLabel').innerText = 'BLE Connected';
+    document.getElementById('connDot').className = 'conn-dot online';
+    document.getElementById('connDot').style.background = '#00d4ff';
+
+    bleChar.addEventListener('characteristicvaluechanged', (e) => {
+      const dec = new TextDecoder();
+      const val = dec.decode(e.target.value);
+      console.log('[BLE Notify]', val);
+    });
+    await bleChar.startNotifications();
+  } catch(err) {
+    console.error('BLE connect error', err);
+    document.getElementById('connLabel').innerText = 'Wi-Fi Active';
+  }
+}
+
+// Initial Sync
+setInterval(syncRelays, 3000);
+syncRelays();
+</script>
+</body>
+</html>)rawliteral";
