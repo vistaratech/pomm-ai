@@ -911,6 +911,8 @@ async function setupBleConnection(device: any): Promise<void> {
         showToast('✓ Countdown timer running on PommAI OLED!');
       } else if (text.startsWith('OK:TIMER_STOPPED')) {
         showToast('✓ Timer stopped');
+      } else if (text.includes('R1:') || text.includes('R2:') || text.startsWith('MODE:')) {
+        updateRelayStatesFromText(text);
       }
     });
 
@@ -1672,6 +1674,166 @@ function initConnectivityModal(): void {
 }
 
 // ============================================================
+//  SMART HOME RELAY CONTROLLER (GPIO 7 & GPIO 10)
+// ============================================================
+
+function updateRelayStatesFromText(text: string): void {
+  const toggle1 = document.getElementById('toggle-relay-1') as HTMLInputElement | null;
+  const toggle2 = document.getElementById('toggle-relay-2') as HTMLInputElement | null;
+  const pill1 = document.getElementById('relay-1-pill');
+  const pill2 = document.getElementById('relay-2-pill');
+
+  const r1Match = text.match(/R1:([01])/i);
+  if (r1Match && toggle1 && pill1) {
+    const on = r1Match[1] === '1';
+    toggle1.checked = on;
+    pill1.textContent = on ? 'ON' : 'OFF';
+    pill1.style.background = on ? '#0284c7' : '#334155';
+    pill1.style.color = on ? '#fff' : '#94a3b8';
+  }
+
+  const r2Match = text.match(/R2:([01])/i);
+  if (r2Match && toggle2 && pill2) {
+    const on = r2Match[1] === '1';
+    toggle2.checked = on;
+    pill2.textContent = on ? 'ON' : 'OFF';
+    pill2.style.background = on ? '#0284c7' : '#334155';
+    pill2.style.color = on ? '#fff' : '#94a3b8';
+  }
+}
+
+async function syncRelayStates(): Promise<void> {
+  // 1. Try BLE / Serial command
+  await sendCommand('STATUS');
+
+  // 2. Fallback HTTP fetch if on Wi-Fi network
+  try {
+    const res = await fetch('/api/relay');
+    if (res.ok) {
+      const data = await res.json();
+      const toggle1 = document.getElementById('toggle-relay-1') as HTMLInputElement | null;
+      const toggle2 = document.getElementById('toggle-relay-2') as HTMLInputElement | null;
+      const pill1 = document.getElementById('relay-1-pill');
+      const pill2 = document.getElementById('relay-2-pill');
+      if (toggle1 && pill1) {
+        toggle1.checked = !!data.r1;
+        pill1.textContent = data.r1 ? 'ON' : 'OFF';
+        pill1.style.background = data.r1 ? '#0284c7' : '#334155';
+        pill1.style.color = data.r1 ? '#fff' : '#94a3b8';
+      }
+      if (toggle2 && pill2) {
+        toggle2.checked = !!data.r2;
+        pill2.textContent = data.r2 ? 'ON' : 'OFF';
+        pill2.style.background = data.r2 ? '#0284c7' : '#334155';
+        pill2.style.color = data.r2 ? '#fff' : '#94a3b8';
+      }
+    }
+  } catch {}
+}
+
+function initSmartHomeTab(): void {
+  const toggle1 = document.getElementById('toggle-relay-1') as HTMLInputElement | null;
+  const toggle2 = document.getElementById('toggle-relay-2') as HTMLInputElement | null;
+  const pill1 = document.getElementById('relay-1-pill');
+  const pill2 = document.getElementById('relay-2-pill');
+  const btnAllOff = document.getElementById('btn-all-relays-off');
+  const btnAllOn = document.getElementById('btn-all-relays-on');
+  const btnSync = document.getElementById('btn-sync-relays');
+  const timerBtns = document.querySelectorAll('.btn-relay-timer');
+
+  // Relay 1 Toggle
+  toggle1?.addEventListener('change', async () => {
+    const on = toggle1.checked;
+    if (pill1) {
+      pill1.textContent = on ? 'ON' : 'OFF';
+      pill1.style.background = on ? '#0284c7' : '#334155';
+      pill1.style.color = on ? '#fff' : '#94a3b8';
+    }
+    const cmd = on ? 'R1:1' : 'R1:0';
+    await sendCommand(cmd);
+    try {
+      await fetch(`/api/relay/set?ch=1&on=${on ? 1 : 0}`, { method: 'POST' });
+    } catch {}
+    showToast(`💡 Relay 1 (Light) turned ${on ? 'ON' : 'OFF'}`);
+    appendLog(`[Relay] 1 → ${on ? 'ON' : 'OFF'}`);
+  });
+
+  // Relay 2 Toggle
+  toggle2?.addEventListener('change', async () => {
+    const on = toggle2.checked;
+    if (pill2) {
+      pill2.textContent = on ? 'ON' : 'OFF';
+      pill2.style.background = on ? '#0284c7' : '#334155';
+      pill2.style.color = on ? '#fff' : '#94a3b8';
+    }
+    const cmd = on ? 'R2:1' : 'R2:0';
+    await sendCommand(cmd);
+    try {
+      await fetch(`/api/relay/set?ch=2&on=${on ? 1 : 0}`, { method: 'POST' });
+    } catch {}
+    showToast(`🌀 Relay 2 (Fan) turned ${on ? 'ON' : 'OFF'}`);
+    appendLog(`[Relay] 2 → ${on ? 'ON' : 'OFF'}`);
+  });
+
+  // All OFF
+  btnAllOff?.addEventListener('click', async () => {
+    if (toggle1) toggle1.checked = false;
+    if (toggle2) toggle2.checked = false;
+    if (pill1) { pill1.textContent = 'OFF'; pill1.style.background = '#334155'; pill1.style.color = '#94a3b8'; }
+    if (pill2) { pill2.textContent = 'OFF'; pill2.style.background = '#334155'; pill2.style.color = '#94a3b8'; }
+    await sendCommand('R1:0');
+    await new Promise((r) => setTimeout(r, 60));
+    await sendCommand('R2:0');
+    try {
+      await fetch('/api/relay/set?ch=1&on=0', { method: 'POST' });
+      await fetch('/api/relay/set?ch=2&on=0', { method: 'POST' });
+    } catch {}
+    showToast('✓ All Relays turned OFF');
+    appendLog('[Relay] All channels turned OFF');
+  });
+
+  // All ON
+  btnAllOn?.addEventListener('click', async () => {
+    if (toggle1) toggle1.checked = true;
+    if (toggle2) toggle2.checked = true;
+    if (pill1) { pill1.textContent = 'ON'; pill1.style.background = '#0284c7'; pill1.style.color = '#fff'; }
+    if (pill2) { pill2.textContent = 'ON'; pill2.style.background = '#0284c7'; pill2.style.color = '#fff'; }
+    await sendCommand('R1:1');
+    await new Promise((r) => setTimeout(r, 60));
+    await sendCommand('R2:1');
+    try {
+      await fetch('/api/relay/set?ch=1&on=1', { method: 'POST' });
+      await fetch('/api/relay/set?ch=2&on=1', { method: 'POST' });
+    } catch {}
+    showToast('✓ All Relays turned ON');
+    appendLog('[Relay] All channels turned ON');
+  });
+
+  // Quick Timers
+  timerBtns.forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const ch = btn.getAttribute('data-ch') || '1';
+      const sec = btn.getAttribute('data-sec') || '900';
+      const cmd = `TIMER:${ch}:${sec}`;
+      await sendCommand(cmd);
+      try {
+        await fetch(`/api/relay/set?ch=${ch}&on=1`, { method: 'POST' });
+      } catch {}
+      const label = sec === '900' ? '15m' : sec === '1800' ? '30m' : '1h';
+      showToast(`⏱️ Relay ${ch} timer active for ${label}`);
+      appendLog(`[Relay] Timer set for Relay ${ch}: ${sec}s`);
+      syncRelayStates();
+    });
+  });
+
+  // Sync button
+  btnSync?.addEventListener('click', async () => {
+    await syncRelayStates();
+    showToast('✓ Relay states synchronized');
+  });
+}
+
+// ============================================================
 //  MAIN INIT
 // ============================================================
 
@@ -1699,6 +1861,8 @@ function switchTab(target: string): void {
     sendCommand('CLOCK');
   } else if (target === 'library') {
     sendCommand('FACE');
+  } else if (target === 'home') {
+    syncRelayStates();
   }
 
   if (target !== 'photo') {
@@ -1810,6 +1974,9 @@ function initNavModule(): void {
     showToast('✓ Navigation stopped. Switched to Buddy Face!');
     appendLog('[Nav] Navigation stopped');
   });
+
+  // 6. Smart Home Relay Controller
+  initSmartHomeTab();
 }
 
 document.addEventListener('DOMContentLoaded', init);

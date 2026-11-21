@@ -1145,11 +1145,11 @@ button, input, select {
   -webkit-backdrop-filter: blur(24px) saturate(190%);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 32px;
-  padding: 6px 8px;
+  padding: 6px 6px;
   width: 100%;
-  max-width: 440px;
+  max-width: 480px;
   box-shadow: 0 16px 36px -6px rgba(0, 0, 0, 0.75), 0 4px 12px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  gap: 4px;
+  gap: 2px;
 }
 
 .dock-tab {
@@ -1159,7 +1159,7 @@ button, input, select {
   align-items: center;
   justify-content: center;
   gap: 3px;
-  padding: 8px 6px;
+  padding: 7px 3px;
   background: transparent;
   border: none;
   border-radius: 22px;
