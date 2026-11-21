@@ -38,6 +38,9 @@ void displayShowNavigationNatural(const String &title, const String &text);
 // Stop navigation screen and return to robot face
 void displayStopNavigation();
 
+// Show relay popup on OLED
+void displayShowRelayPopup(const char* l1, const char* l2);
+
 // Check if navigation is active
 bool displayIsNavigating();
 

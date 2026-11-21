@@ -20,6 +20,7 @@
 #include "network_task.h"
 #include "input_task.h"
 #include "ble_task.h"
+#include "home_relay.h"
 
 #include "gif_types.h"
 #include "sys_idle.h"
@@ -43,8 +44,10 @@ void setup() {
     settingsInit();
     pinMode(getPinTouch(), INPUT);
     pinMode(getPinBuzzer(), OUTPUT);
+    homeRelayInit();
 
     // 2. Display (reconstruct U8G2 with NVS pins)
+    Wire.begin(getPinSDA(), getPinSCL());
     new (&u8g2) U8G2_SSD1306_128X64_NONAME_F_HW_I2C(
         U8G2_R0, U8X8_PIN_NONE, getPinSCL(), getPinSDA());
     u8g2.setBusClock(400000);
@@ -91,16 +94,16 @@ void setup() {
     NW.setPortalTimeout(60UL * 60UL * 1000UL);   // 1 hour (ms) for first-time / captive setup
     // Hostname sent to router via DHCP
     {
-        String hostname = "pommai-" + getDeviceId();
+        String hostname = "yuyk-" + getDeviceId();
         hostname.toLowerCase();
         NW.setHostname(hostname.c_str());
     }
-    NW.autoConnect("PommAI", apPwd.c_str());
+    NW.autoConnect("YUYK", apPwd.c_str());
     // Apply AP RF stability for ESP32-C3 PCB antenna after NetWizard (fixes #2). Does not change mode; AP_STA kept for portal.
     wifiApplyApRfStabilityForPcbAntenna();
 
     // 8. mDNS
-    if (MDNS.begin("pommai")) {
+    if (MDNS.begin("yuyk")) {
         MDNS.addService("http", "tcp", 80);
     }
 
@@ -125,6 +128,25 @@ void setup() {
             }
         }
     );
+
+    // 9.5. Smart Home Relay endpoints
+    server.on("/api/relay", HTTP_GET, [](AsyncWebServerRequest *request) {
+        String json = "{\"r1\":" + String(homeRelayGet(0) ? "true" : "false") +
+                      ",\"r2\":" + String(homeRelayGet(1) ? "true" : "false") + "}";
+        request->send(200, "application/json", json);
+    });
+    server.on("/api/relay/toggle", HTTP_POST, [](AsyncWebServerRequest *request) {
+        if (request->hasParam("ch")) {
+            int ch = request->getParam("ch")->value().toInt() - 1;
+            if (ch >= 0 && ch < NUM_RELAYS) {
+                homeRelayToggle(ch);
+            }
+        }
+        String json = "{\"status\":\"ok\",\"r1\":" + String(homeRelayGet(0) ? "true" : "false") +
+                      ",\"r2\":" + String(homeRelayGet(1) ? "true" : "false") + "}";
+        request->send(200, "application/json", json);
+    });
+
     server.begin();
 
     Serial.println("Web server started");

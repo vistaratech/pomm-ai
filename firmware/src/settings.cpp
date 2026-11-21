@@ -21,10 +21,10 @@ static SemaphoreHandle_t _prefsMutex = NULL;
 #define TZ_IANA_MAX_LEN 64
 
 // GPIO pin defaults (ESP32-C3 Super Mini)
-static uint8_t _pinTouch  = 1;
+static uint8_t _pinTouch  = 6;
 static uint8_t _pinBuzzer = 2;
-static uint8_t _pinSDA    = 20;
-static uint8_t _pinSCL    = 21;
+static uint8_t _pinSDA    = 5;
+static uint8_t _pinSCL    = 4;
 
 // Display
 static uint8_t _brightness = 0x80;
@@ -51,7 +51,7 @@ static String  _tzIANA;
 
 
 // Display orientation / GIF options
-static bool _flipMode        = true;
+static bool _flipMode        = false;
 static bool _clockMode       = false; // true = persistent clock display mode
 
 // T-Rex Runner high score (stored under key "trexHi")
@@ -128,10 +128,22 @@ void settingsInit() {
     _prefsReady = true;
 
     // Read GPIO pin config first (needed before hardware init)
-    _pinTouch  = _prefs.getUChar("pinTouch",  1);
+    _pinTouch  = _prefs.getUChar("pinTouch",  6);
     _pinBuzzer = _prefs.getUChar("pinBuzzer", 2);
-    _pinSDA    = _prefs.getUChar("pinSDA",    20);
-    _pinSCL    = _prefs.getUChar("pinSCL",    21);
+    _pinSDA    = _prefs.getUChar("pinSDA",    5);
+    _pinSCL    = _prefs.getUChar("pinSCL",    4);
+
+    // If NVS still contains old pins (20, 21, or 1), override and save new wiring
+    if (_pinSDA == 20 || _pinSCL == 21 || _pinTouch == 1) {
+        _pinTouch  = 6;
+        _pinBuzzer = 2;
+        _pinSDA    = 5;
+        _pinSCL    = 4;
+        _prefs.putUChar("pinTouch",  _pinTouch);
+        _prefs.putUChar("pinBuzzer", _pinBuzzer);
+        _prefs.putUChar("pinSDA",    _pinSDA);
+        _prefs.putUChar("pinSCL",    _pinSCL);
+    }
 
     Serial.printf("GPIO pins: touch=%u buzzer=%u sda=%u scl=%u\n",
                   _pinTouch, _pinBuzzer, _pinSDA, _pinSCL);
@@ -150,8 +162,12 @@ void loadSettings() {
     uint16_t speed = _prefs.getUShort("speed", 5);
 
     // Device name
-    String defaultName = "PommAI-" + getDeviceId().substring(0, 4);
+    String defaultName = "YUYK";
     _deviceName = _prefs.getString("devname", defaultName);
+    if (_deviceName.startsWith("PommAI") || _deviceName.length() == 0) {
+        _deviceName = "YUYK";
+        _prefs.putString("devname", _deviceName);
+    }
 
     // MQTT (truncate to limits in case stored value was from older code or direct NVS write)
     _mqttHost    = _prefs.getString("mqttHost", "");
@@ -175,7 +191,8 @@ void loadSettings() {
 
     // Display / GIF options
 
-    _flipMode        = _prefs.getBool("flipMode",  true);
+    _flipMode        = false;
+    _prefs.putBool("flipMode", false);
     _clockMode       = _prefs.getBool("clkMode",   false);
     _negativeGif     = _prefs.getBool("negGif",    false);
     _timeFormat24h   = _prefs.getBool("time24h",   true);

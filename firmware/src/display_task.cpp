@@ -21,6 +21,7 @@
 #include "games/flappy_bird/flappy_bird.h"
 #include "games/car_avoidance/car_avoidance.h"
 #include "nav_screen.h"
+#include "home_relay.h"
 
 #include "gif_types.h"
 #include "sys_scx.h"
@@ -233,6 +234,15 @@ void displayShowNavigationNatural(const String &title, const String &text) {
 void displayStopNavigation() {
     navScreenStop();
     displayShowRobotFace();
+}
+
+static bool          _relayPopupActive   = false;
+static unsigned long _relayPopupStartMs  = 0;
+
+void displayShowRelayPopup(const char* l1, const char* l2) {
+    _relayPopupActive  = true;
+    _relayPopupStartMs = millis();
+    showText("[ SMART HOME ]", l1 ? l1 : "", l2 ? l2 : "", "YUYK Hub");
 }
 
 bool displayIsNavigating() {
@@ -496,22 +506,66 @@ static void showPokeHistoryEntry(uint8_t index) {
 // ==========================================================================
 
 static void playBootAnimation() {
-    uint8_t frameBuf[QGIF_FRAME_SIZE];
-
     if (getBuzzerVolume() > 0) {
         rtttl::begin(getPinBuzzer(), BOOT_MELODY);
     }
 
-    for (uint8_t f = 0; f < sys_scx_gif.frame_count; f++) {
+    const char *name = "YUYK";
+    const int totalSteps = 30;
+
+    for (int step = 0; step < totalSteps; step++) {
         if (getBuzzerVolume() > 0 && rtttl::isPlaying()) {
             rtttl::play();
         }
 
-        memcpy_P(frameBuf, sys_scx_gif.frames[f], QGIF_FRAME_SIZE);
-        gifRenderFrame(&u8g2, frameBuf, sys_scx_gif.width, sys_scx_gif.height);
+        u8g2.clearBuffer();
 
-        uint16_t d = sys_scx_gif.delays[f] / BOOT_GIF_SPEED;
-        vTaskDelay(pdMS_TO_TICKS(d > 0 ? d : 1));
+        // 1. Tech border frame
+        u8g2.drawRFrame(2, 2, 124, 60, 4);
+
+        // 2. Large bold title "YUYK"
+        u8g2.setFont(u8g2_font_helvB18_tr);
+        int strW = u8g2.getStrWidth(name);
+        u8g2.drawStr((128 - strW) / 2, 28, name);
+
+        // 3. Subtitle "BUDDY ONLINE"
+        u8g2.setFont(u8g2_font_6x13_tr);
+        const char *sub = "BUDDY ONLINE";
+        int subW = u8g2.getStrWidth(sub);
+        u8g2.drawStr((128 - subW) / 2, 43, sub);
+
+        // 4. Animated progress bar
+        int barW = map(step, 0, totalSteps - 1, 0, 96);
+        u8g2.drawFrame(16, 49, 96, 6);
+        if (barW > 0) {
+            u8g2.drawBox(18, 51, (barW > 4 ? barW - 4 : 0), 2);
+        }
+
+        rotateBuffer180();
+        u8g2.sendBuffer();
+
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+
+    // Cute ready wink
+    for (int blink = 0; blink < 2; blink++) {
+        if (getBuzzerVolume() > 0 && rtttl::isPlaying()) {
+            rtttl::play();
+        }
+        u8g2.clearBuffer();
+        u8g2.drawRFrame(2, 2, 124, 60, 4);
+        u8g2.setFont(u8g2_font_helvB18_tr);
+        int strW = u8g2.getStrWidth(name);
+        u8g2.drawStr((128 - strW) / 2, 28, name);
+
+        u8g2.setFont(u8g2_font_6x13_tr);
+        const char *sub = (blink == 0) ? "^ _ ^  READY!" : "O _ O  READY!";
+        int subW = u8g2.getStrWidth(sub);
+        u8g2.drawStr((128 - subW) / 2, 45, sub);
+
+        rotateBuffer180();
+        u8g2.sendBuffer();
+        vTaskDelay(pdMS_TO_TICKS(200));
     }
 
     rtttl::stop();
@@ -538,7 +592,7 @@ void displayTask(void *param) {
         showText("[ Wi-Fi Connected ]",
                  "",
                  ip.c_str(),
-                 "http://pommai.local");
+                 "http://yuyk.local");
     } else {
         enterState(WIFI_SETUP);
         _wifiSetupShowQR = true;
@@ -546,7 +600,7 @@ void displayTask(void *param) {
         if (bits & PORTAL_ACTIVE_BIT) {
             _wifiSetupPortalDrawn = true;
             String apPwd = getApPassword();
-            showWifiQR("PommAI", apPwd.c_str());
+            showWifiQR("YUYK", apPwd.c_str());
         } else {
             _lastWifiConnBar = 0xFF;
             _lastWifiConnSec = 0xFF;
@@ -726,10 +780,10 @@ void displayTask(void *param) {
                             break;
                         }
                         case DOUBLE_TAP:
-                            displayShowClock(20000);
+                            homeRelayToggle(0); // Relay 1 (Light)
                             break;
                         case LONG_PRESS:
-                            enterSettingsMenu();
+                            homeRelayToggle(1); // Relay 2 (Fan)
                             break;
                         default:
                             break;
@@ -1153,6 +1207,16 @@ void displayTask(void *param) {
                 break;
 
             case GIF_PLAYBACK:
+                // Handle relay popup timeout (hold for 2 seconds)
+                if (_relayPopupActive) {
+                    if (now - _relayPopupStartMs >= 2000) {
+                        _relayPopupActive = false;
+                    } else {
+                        vTaskDelay(pdMS_TO_TICKS(50));
+                        break;
+                    }
+                }
+
                 // Handle offline overlay timeout
                 if (_offlineShown && (now - _offlineStartMs >= OFFLINE_OVERLAY_MS)) {
                     _offlineShown = false;

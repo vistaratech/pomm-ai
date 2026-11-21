@@ -6,6 +6,7 @@
 #include "settings.h"
 #include "time_manager.h"
 #include "mqtt_ha.h"
+#include "home_relay.h"
 #include "poke_handler.h"
 
 #include <WiFi.h>
@@ -523,6 +524,21 @@ static void mqttCallback(char *topic, byte *payload, unsigned int length) {
     for (unsigned int i = 0; i < length; i++) rawPayload += (char)payload[i];
 
     // Poke command (JSON payload). If user typed in HA text entity, use that; else use payload text (default "Poke!").
+    if (topicStr == "home/esp32/relay1/set" || topicStr == prefix + "/" + id + "/relay1/set") {
+        String p = rawPayload;
+        p.trim();
+        p.toUpperCase();
+        homeRelaySet(0, (p == "1" || p == "ON" || p == "TRUE"));
+        return;
+    }
+    if (topicStr == "home/esp32/relay2/set" || topicStr == prefix + "/" + id + "/relay2/set") {
+        String p = rawPayload;
+        p.trim();
+        p.toUpperCase();
+        homeRelaySet(1, (p == "1" || p == "ON" || p == "TRUE"));
+        return;
+    }
+
     if (topicStr == prefix + "/" + id + "/command") {
         StaticJsonDocument<1024> doc;
         if (deserializeJson(doc, payload, length)) return;
@@ -652,6 +668,8 @@ static void mqttReconnect() {
         _mqttClient.publish(infoTopic.c_str(), infoStr.c_str(), true);
 
         // Subscribe to command topics
+        _mqttClient.subscribe("home/esp32/relay1/set");
+        _mqttClient.subscribe("home/esp32/relay2/set");
         _mqttClient.subscribe((prefix + "/" + id + "/command").c_str());
         _mqttClient.subscribe((prefix + "/" + id + "/poke_text/set").c_str());
         _mqttClient.subscribe((prefix + "/" + id + "/mute/set").c_str());
@@ -686,6 +704,9 @@ void networkTask(void *param) {
     timeManagerInit();
 
     for (;;) {
+        // --- Home Relay Timer Countdown ---
+        homeRelayLoop();
+
         // --- NetWizard loop ---
         NW.loop();
 

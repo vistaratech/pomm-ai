@@ -16,14 +16,20 @@
 #include "time_manager.h"
 #include <LittleFS.h>
 #include <ArduinoJson.h>
+#include "home_relay.h"
 
 // Standard Nordic UART Service (NUS) UUIDs
 #define SERVICE_UUID           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
 #define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
 #define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
 
-static BLEServer         *pServer         = nullptr;
-static BLECharacteristic *pTxCharacteristic = nullptr;
+// Lumo Home Control BLE UUIDs (for Phone App on Desktop)
+#define LUMO_SERVICE_UUID      "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+#define LUMO_CHAR_UUID         "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+
+static BLEServer         *pServer            = nullptr;
+static BLECharacteristic *pTxCharacteristic   = nullptr;
+static BLECharacteristic *pLumoCharacteristic = nullptr;
 static bool               deviceConnected = false;
 static bool               oldDeviceConnected = false;
 
@@ -240,6 +246,9 @@ static void handleCommand(const String &cmd) {
     } else if (trimmed.equalsIgnoreCase("INFO")) {
         String info = "INFO:NAME=PommAI;ID=" + getDeviceId() + ";VER=1.0.0";
         bleNotify(info);
+    } else {
+        // Relay & Home Control commands (R1:1, R1:0, R2:1, etc.)
+        homeRelayProcessCommand(trimmed);
     }
 }
 
@@ -291,8 +300,21 @@ class RxCallbacks : public BLECharacteristicCallbacks {
     }
 };
 
+class LumoRxCallbacks : public BLECharacteristicCallbacks {
+    void onWrite(BLECharacteristic *pChar) override {
+        String val = pChar->getValue().c_str();
+        if (val.length() > 0) {
+            Serial.printf("[BLE-LUMO] Received: %s\n", val.c_str());
+            homeRelayProcessCommand(val);
+            String status = homeRelayGetStatusString();
+            pChar->setValue((uint8_t *)status.c_str(), status.length());
+            pChar->notify();
+        }
+    }
+};
+
 void bleInit() {
-    Serial.println("[BLE] Initializing Bluetooth Low Energy as 'PommAI'...");
+    Serial.println("[BLE] Initializing Bluetooth Low Energy as 'YUYK'...");
 
     // 0. Configure onboard Blue LED (GPIO 8)
     pinMode(ONBOARD_BLUE_LED_PIN, OUTPUT);
@@ -305,15 +327,15 @@ void bleInit() {
     delay(80);
     bleSetLed(false);
 
-    // 1. Initialize BLE with name "PommAI"
-    BLEDevice::init("PommAI");
-    BLEDevice::setMTU(512);
+    // 1. Initialize BLE with name "YUYK"
+    BLEDevice::init("YUYK");
+    BLEDevice::setMTU(517);
 
     // 2. Create BLE Server
     pServer = BLEDevice::createServer();
     pServer->setCallbacks(new ServerCallbacks());
 
-    // 3. Create Service
+    // 3. Create Nordic UART Service (NUS)
     BLEService *pService = pServer->createService(SERVICE_UUID);
 
     // 4. Create TX Characteristic (Notify to Web Browser)
@@ -329,22 +351,36 @@ void bleInit() {
         BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_WRITE_NR
     );
     pRxCharacteristic->setCallbacks(new RxCallbacks());
-
-    // 6. Start Service
     pService->start();
+
+    // 6. Create Lumo Home Control BLE Service (Phone App)
+    BLEService *pLumoService = pServer->createService(LUMO_SERVICE_UUID);
+    pLumoCharacteristic = pLumoService->createCharacteristic(
+        LUMO_CHAR_UUID,
+        BLECharacteristic::PROPERTY_READ     |
+        BLECharacteristic::PROPERTY_WRITE    |
+        BLECharacteristic::PROPERTY_WRITE_NR |
+        BLECharacteristic::PROPERTY_NOTIFY   |
+        BLECharacteristic::PROPERTY_INDICATE
+    );
+    pLumoCharacteristic->addDescriptor(new BLE2902());
+    pLumoCharacteristic->setCallbacks(new LumoRxCallbacks());
+    pLumoCharacteristic->setValue(homeRelayGetStatusString().c_str());
+    pLumoService->start();
 
     // 7. Start Advertising with explicit complete local name in both Adv and Scan response
     BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
     pAdvertising->addServiceUUID(SERVICE_UUID);
+    pAdvertising->addServiceUUID(LUMO_SERVICE_UUID);
 
     BLEAdvertisementData advData;
     advData.setFlags(0x06); // General Discoverable Mode, BR/EDR Not Supported
-    advData.setName("PommAI");
+    advData.setName("YUYK");
     advData.setCompleteServices(BLEUUID(SERVICE_UUID));
     pAdvertising->setAdvertisementData(advData);
 
     BLEAdvertisementData scanData;
-    scanData.setName("PommAI");
+    scanData.setName("YUYK");
     pAdvertising->setScanResponseData(scanData);
 
     pAdvertising->setScanResponse(true);
@@ -352,7 +388,7 @@ void bleInit() {
     pAdvertising->setMinPreferred(0x12);
     BLEDevice::startAdvertising();
 
-    Serial.println("[BLE] PommAI Bluetooth is now advertising as 'PommAI'!");
+    Serial.println("[BLE] YUYK Bluetooth is now advertising as 'YUYK'!");
 
     // 8. Start background Serial command listener (for USB-C Web Serial)
     xTaskCreate(serialCommandTask, "serial_cmd", 3072, NULL, 1, NULL);
@@ -366,6 +402,10 @@ void bleNotify(const String &msg) {
     if (deviceConnected && pTxCharacteristic != nullptr) {
         pTxCharacteristic->setValue((uint8_t *)msg.c_str(), msg.length());
         pTxCharacteristic->notify();
+    }
+    if (deviceConnected && pLumoCharacteristic != nullptr) {
+        pLumoCharacteristic->setValue((uint8_t *)msg.c_str(), msg.length());
+        pLumoCharacteristic->notify();
     }
 }
 
